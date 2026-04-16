@@ -63,7 +63,7 @@ const CardTitle = ({ children }) => (
 
 // ─── Table helpers ────────────────────────────────────────────────────────────
 const TH = ({ children }) => (
-  <Box component="th" sx={{ textAlign: "left", py: "8px", px: "10px", borderBottom: "0.5px solid #E5E7EB", color: "#6B7280", fontWeight: 500, fontSize: 12, whiteSpace: "nowrap" }}>
+  <Box component="th" sx={{ textAlign: "center", py: "8px", px: "10px", borderBottom: "0.5px solid #E5E7EB", color: "#6B7280", fontWeight: 500, fontSize: 12, whiteSpace: "nowrap" }}>
     {children}
   </Box>
 );
