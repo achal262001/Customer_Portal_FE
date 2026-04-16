@@ -1,10 +1,11 @@
 import { useState, useRef } from "react";
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, Dialog, DialogContent, IconButton, Divider } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
 import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
 import { TicketsData } from "../Ticket/constant";
 
@@ -89,6 +90,21 @@ const tickets = TicketsData.map((t, i) => ({
   spoc:   t["Delivery SPOC"],
 }));
 
+// ─── Tickets by Date (from TicketsData) ──────────────────────────────────────
+const shortDate = (d) => {
+  const [, m, day] = d.split("-");
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[parseInt(m, 10) - 1]} ${parseInt(day, 10)}`;
+};
+
+const ticketsByDate = (() => {
+  const counts = {};
+  TicketsData.forEach(t => { counts[t.Date] = (counts[t.Date] || 0) + 1; });
+  return Object.entries(counts)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, count]) => ({ date: shortDate(date), count }));
+})();
+
 // ─── Analytics static data ────────────────────────────────────────────────────
 const monthlyData = [
   { month: "Sep", count: 3 }, { month: "Oct", count: 5 },
@@ -122,6 +138,108 @@ const KB_ARTICLES = [
   { cat: "Environment",   catBg: "#E6F1FB", catColor: "#185FA5", title: "Data sync timeouts – causes and resolutions",  desc: "Diagnose why syncs time out after 30 seconds and how to adjust config thresholds.",            views: 55,  updated: "5 Apr 2026"  },
   { cat: "Configuration", catBg: "#EEEDFE", catColor: "#534AB7", title: "TMS workflow approval not triggering",          desc: "Covers missing trigger conditions, approval chain config, and common fallback errors.",        views: 89,  updated: "10 Apr 2026" },
 ];
+
+// ─── Ticket detail dialog (shared by All Tickets + My Tickets) ───────────────
+const DetailRow = ({ label, children }) => (
+  <Box sx={{ display: "flex", gap: 2, py: 1.4, alignItems: "flex-start" }}>
+    <Typography sx={{ fontSize: 12, color: "#9CA3AF", minWidth: 140, fontWeight: 500 }}>
+      {label}
+    </Typography>
+    <Box sx={{ flex: 1 }}>{children}</Box>
+  </Box>
+);
+
+const TicketDetailDialog = ({ ticket, onClose }) => {
+  if (!ticket) return null;
+  return (
+    <Dialog
+      open={!!ticket}
+      onClose={onClose}
+      PaperProps={{
+        sx: {
+          width: "80vw", maxWidth: "80vw",
+          height: "80vh", maxHeight: "80vh",
+          borderRadius: "12px",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.18)",
+          display: "flex", flexDirection: "column",
+        },
+      }}
+    >
+      <DialogContent sx={{ p: 0, display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+
+        {/* Header */}
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", px: 4, pt: 3, pb: 2, borderBottom: "1px solid #F0F0F0", flexShrink: 0 }}>
+          <Box sx={{ flex: 1, pr: 2 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", letterSpacing: 0.6 }}>
+              {ticket.id}
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: "#111827", mt: 0.3, lineHeight: 1.4 }}>
+              {ticket.title}
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={onClose} sx={{ mt: -0.5, flexShrink: 0 }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+
+        {/* Body — scrollable, 2-column */}
+        <Box sx={{ flex: 1, overflowY: "auto", px: 4, py: 3, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, alignContent: "start" }}>
+
+          {/* Left — meta */}
+          <Box sx={{ pr: 4, borderRight: "1px solid #F0F0F0" }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.6, mb: 1, display: "block" }}>
+              Ticket Details
+            </Typography>
+
+            <DetailRow label="Status"><StatTag status={ticket.status} /></DetailRow>
+            <Divider sx={{ borderColor: "#F9F9F9" }} />
+
+            <DetailRow label="Severity"><SevTag sev={ticket.sev} /></DetailRow>
+            <Divider sx={{ borderColor: "#F9F9F9" }} />
+
+            <DetailRow label="Module"><ModTag m={ticket.module} /></DetailRow>
+            <Divider sx={{ borderColor: "#F9F9F9" }} />
+
+            <DetailRow label="Environment">
+              <Typography sx={{ fontSize: 13, color: "#374151" }}>{ticket.env || "—"}</Typography>
+            </DetailRow>
+            <Divider sx={{ borderColor: "#F9F9F9" }} />
+
+            <DetailRow label="Date">
+              <Typography sx={{ fontSize: 13, color: "#374151" }}>{ticket.date || "—"}</Typography>
+            </DetailRow>
+            <Divider sx={{ borderColor: "#F9F9F9" }} />
+
+            <DetailRow label="Client">
+              <Typography sx={{ fontSize: 13, color: "#374151" }}>{ticket.client || "—"}</Typography>
+            </DetailRow>
+            <Divider sx={{ borderColor: "#F9F9F9" }} />
+
+            <DetailRow label="Ticket Category">
+              <Typography sx={{ fontSize: 13, color: "#374151" }}>{ticket.cat || "—"}</Typography>
+            </DetailRow>
+            <Divider sx={{ borderColor: "#F9F9F9" }} />
+
+            <DetailRow label="Delivery SPOC">
+              <Typography sx={{ fontSize: 13, color: "#374151" }}>{ticket.spoc || "—"}</Typography>
+            </DetailRow>
+          </Box>
+
+          {/* Right — issue description */}
+          <Box sx={{ pl: 4 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.6, mb: 1, display: "block" }}>
+              Issue Description
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: "#374151", lineHeight: 1.9, whiteSpace: "pre-wrap", mt: 1 }}>
+              {ticket.issues || "No description provided."}
+            </Typography>
+          </Box>
+        </Box>
+
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 // ═════════════════════════════════════════════════════════════════════════════
 // PANEL 1 — DASHBOARD
@@ -157,6 +275,49 @@ const DashboardPanel = () => {
       {/* 2-col row */}
       <Box sx={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 1.5, mb: 2.5 }}>
 
+        {/* Number of Tickets vs Date */}
+        <Card>
+          <CardTitle>Number of Tickets vs Date</CardTitle>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={ticketsByDate} margin={{ top: 4, right: 8, left: -20, bottom: 60 }}>
+              <defs>
+                <linearGradient id="ticketGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#378ADD" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#378ADD" stopOpacity={0}   />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                axisLine={false}
+                tickLine={false}
+                angle={-45}
+                textAnchor="end"
+                interval={0}
+              />
+              <YAxis
+                allowDecimals={false}
+                tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)", fontSize: 12 }}
+                formatter={(v) => [v, "Tickets"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="count"
+                stroke="#378ADD"
+                strokeWidth={2}
+                fill="url(#ticketGrad)"
+                dot={{ r: 4, fill: "#378ADD", strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Card>
 
         {/* Module + SPOC */}
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -216,10 +377,11 @@ const DashboardPanel = () => {
 // PANEL 2 — ALL TICKETS
 // ═════════════════════════════════════════════════════════════════════════════
 const AllTicketsPanel = () => {
-  const [search,      setSearch]      = useState("");
-  const [filterMod,   setFilterMod]   = useState("");
-  const [filterSev,   setFilterSev]   = useState("");
-  const [filterStat,  setFilterStat]  = useState("");
+  const [search,         setSearch]         = useState("");
+  const [filterMod,      setFilterMod]      = useState("");
+  const [filterSev,      setFilterSev]      = useState("");
+  const [filterStat,     setFilterStat]     = useState("");
+  const [selectedTicket, setSelectedTicket] = useState(null);
 
   const filtered = tickets.filter(t =>
     (!search     || t.title.toLowerCase().includes(search.toLowerCase()) || t.id.toLowerCase().includes(search.toLowerCase())) &&
@@ -232,6 +394,7 @@ const AllTicketsPanel = () => {
 
   return (
     <Box>
+      <TicketDetailDialog ticket={selectedTicket} onClose={() => setSelectedTicket(null)} />
       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5, alignItems: "center" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flex: 1, minWidth: 160, backgroundColor: "#fff", border: "0.5px solid #D1D5DB", borderRadius: "6px", px: 1.2, py: "6px" }}>
           <SearchIcon sx={{ fontSize: 16, color: "#9CA3AF", flexShrink: 0 }} />
@@ -260,7 +423,7 @@ const AllTicketsPanel = () => {
           </Box>
           <Box component="tbody">
             {filtered.map(t => (
-              <Box component="tr" key={t.id} sx={{ cursor: "pointer", "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
+              <Box component="tr" key={t.id} onClick={() => setSelectedTicket(t)} sx={{ cursor: "pointer", "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
                 <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{t.id}</TD>
                 <TD sx={{ minWidth: 200 }}>
                   <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography>
@@ -287,33 +450,37 @@ const AllTicketsPanel = () => {
 // PANEL 3 — MY TICKETS
 // ═════════════════════════════════════════════════════════════════════════════
 const MyTicketsPanel = () => {
+  const [selectedTicket, setSelectedTicket] = useState(null);
   const myTickets = tickets.filter(t => t.status !== "Closed").slice(0, 5);
   const lastUpdates = ["2h ago", "Yesterday", "3d ago", "1d ago", "5h ago"];
 
   return (
-    <Card sx={{ overflowX: "auto" }}>
-      <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
-        <Box component="thead">
-          <Box component="tr">
-            {["#","Title","Module","Severity","Status","Last update"].map(h => <TH key={h}>{h}</TH>)}
+    <Box>
+      <TicketDetailDialog ticket={selectedTicket} onClose={() => setSelectedTicket(null)} />
+      <Card sx={{ overflowX: "auto" }}>
+        <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
+          <Box component="thead">
+            <Box component="tr">
+              {["#","Title","Module","Severity","Status","Last update"].map(h => <TH key={h}>{h}</TH>)}
+            </Box>
+          </Box>
+          <Box component="tbody">
+            {myTickets.map((t, i) => (
+              <Box component="tr" key={t.id} onClick={() => setSelectedTicket(t)} sx={{ cursor: "pointer", "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
+                <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{t.id}</TD>
+                <TD>
+                  <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography>
+                </TD>
+                <TD><ModTag m={t.module} /></TD>
+                <TD><SevTag sev={t.sev} /></TD>
+                <TD><StatTag status={t.status} /></TD>
+                <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{lastUpdates[i] || "—"}</TD>
+              </Box>
+            ))}
           </Box>
         </Box>
-        <Box component="tbody">
-          {myTickets.map((t, i) => (
-            <Box component="tr" key={t.id} sx={{ "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
-              <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{t.id}</TD>
-              <TD>
-                <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography>
-              </TD>
-              <TD><ModTag m={t.module} /></TD>
-              <TD><SevTag sev={t.sev} /></TD>
-              <TD><StatTag status={t.status} /></TD>
-              <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{lastUpdates[i] || "—"}</TD>
-            </Box>
-          ))}
-        </Box>
-      </Box>
-    </Card>
+      </Card>
+    </Box>
   );
 };
 
@@ -575,48 +742,6 @@ const ProjectsPanel = () => (
   </Box>
 );
 
-// ═════════════════════════════════════════════════════════════════════════════
-// PANEL 7 — KNOWLEDGE BASE
-// ═════════════════════════════════════════════════════════════════════════════
-const KnowledgeBasePanel = () => {
-  const [kbSearch, setKbSearch] = useState("");
-  const filtered = KB_ARTICLES.filter(a =>
-    !kbSearch ||
-    a.title.toLowerCase().includes(kbSearch.toLowerCase()) ||
-    a.desc.toLowerCase().includes(kbSearch.toLowerCase())  ||
-    a.cat.toLowerCase().includes(kbSearch.toLowerCase())
-  );
-
-  return (
-    <Box>
-      <Box sx={{ backgroundColor: "#EBF4FF", border: "0.5px solid #BFDBFE", borderRadius: "6px", p: "10px 14px", fontSize: 13, color: "#185FA5", mb: 1.8, display: "flex", alignItems: "center", gap: 1 }}>
-        ✦ AI deflection: Before raising a ticket, check if your issue is already answered below.
-      </Box>
-      <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
-        <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 0.8, backgroundColor: "#fff", border: "0.5px solid #D1D5DB", borderRadius: "6px", px: 1.2, py: "8px" }}>
-          <SearchIcon sx={{ fontSize: 16, color: "#9CA3AF", flexShrink: 0 }} />
-          <Box component="input" value={kbSearch} onChange={e => setKbSearch(e.target.value)} placeholder="Search articles…" sx={{ border: "none", outline: "none", fontSize: 13, color: "#111827", background: "transparent", width: "100%", fontFamily: "inherit" }} />
-        </Box>
-      </Box>
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 1.2 }}>
-        {filtered.map(a => (
-          <Box key={a.title} sx={{ backgroundColor: "#fff", border: "0.5px solid #E5E7EB", borderRadius: "10px", p: "14px", cursor: "pointer", "&:hover": { backgroundColor: "#F9FAFB" } }}>
-            <Box sx={{ fontSize: 11, fontWeight: 500, px: "8px", py: "2px", borderRadius: "4px", backgroundColor: a.catBg, color: a.catColor, display: "inline-block", mb: 1 }}>{a.cat}</Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 500, mb: 0.6 }}>{a.title}</Typography>
-            <Typography sx={{ fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>{a.desc}</Typography>
-            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.2, fontSize: 11, color: "#9CA3AF" }}>
-              <span>{a.views} views</span>
-              <span>Updated {a.updated}</span>
-            </Box>
-          </Box>
-        ))}
-      </Box>
-      {filtered.length === 0 && (
-        <Box sx={{ textAlign: "center", py: 6, color: "#9CA3AF", fontSize: 14 }}>No articles match your search</Box>
-      )}
-    </Box>
-  );
-};
 
 // ═════════════════════════════════════════════════════════════════════════════
 // MAIN LAYOUT
@@ -628,7 +753,6 @@ const TABS = [
   { key: "raise",      label: "Raise an issue"  },
   { key: "analytics",  label: "Analytics"       },
   { key: "projects",   label: "Projects"        },
-  // { key: "kb",         label: "Knowledge base"  },
 ];
 
 const PANELS = {
@@ -638,7 +762,6 @@ const PANELS = {
   raise:      <RaiseIssuePanel />,
   analytics:  <AnalyticsPanel />,
   projects:   <ProjectsPanel />,
-  // kb:         <KnowledgeBasePanel />,
 };
 
 const HomeLayout = () => {
