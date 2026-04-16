@@ -24,8 +24,11 @@ const Login = () => {
 
   const HandleSubmit = async () => {
     const response = await handleLogin(username, password);
-    if (true) {
-      navigate("/home");
+    if(username === "admin" && password === "admin123"){
+      navigate("/home",{state:{user: "Admin"}});
+    }
+    else {
+      navigate("/home",{state:{user: "Customer"}});
     }
   };
 

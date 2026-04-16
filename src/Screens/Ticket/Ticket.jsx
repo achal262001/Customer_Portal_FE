@@ -17,35 +17,33 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CreateTicket from "./CreateTicket";
-import { categoryOptions, mockTickets } from "./constant";
+import { TicketsData } from "./constant";
 import { useNavigate } from "react-router-dom";
 
-const priorityColors = {
-  low: { bg: "#eef3ec", text: "#4a6741" },
-  medium: { bg: "#fef3ea", text: "#c87941" },
-  high: { bg: "#fdecea", text: "#b71c1c" },
-  critical: { bg: "#f3e8f8", text: "#6a1b9a" },
+const getSeverityColors = (status = "") => {
+  const s = status.toLowerCase();
+  if (s.includes("severity 1") || s.includes("high"))
+    return { bg: "#fdecea", text: "#b71c1c" };
+  if (s.includes("severity 2") || s.includes("moderate"))
+    return { bg: "#fef3ea", text: "#c87941" };
+  if (s.includes("severity 3") || s.includes("minor"))
+    return { bg: "#fef9e7", text: "#e67e22" };
+  return { bg: "#f5f5f5", text: "#757575" };
 };
 
-const statusColors = {
-  open: { bg: "#eef3ec", text: "#4a6741" },
-  in_progress: { bg: "#fef3ea", text: "#c87941" },
-  resolved: { bg: "#e8f5e9", text: "#2e7d32" },
-  closed: { bg: "#f5f5f5", text: "#757575" },
-};
-
-const dotColors = {
-  open: "#4a6741",
-  in_progress: "#c87941",
-  resolved: "#2e7d32",
-  closed: "#9e9e9e",
+const getDotColor = (status = "") => {
+  const s = status.toLowerCase();
+  if (s.includes("severity 1") || s.includes("high")) return "#b71c1c";
+  if (s.includes("severity 2") || s.includes("moderate")) return "#c87941";
+  if (s.includes("severity 3") || s.includes("minor")) return "#e67e22";
+  return "#9e9e9e";
 };
 
 const DetailRow = ({ label, children }) => (
   <Box sx={{ display: "flex", gap: 2, py: 1.5, alignItems: "flex-start" }}>
     <Typography
       variant="body2"
-      sx={{ color: "#9ca3af", minWidth: 110, fontWeight: 500 }}
+      sx={{ color: "#9ca3af", minWidth: 150, fontWeight: 500 }}
     >
       {label}
     </Typography>
@@ -53,44 +51,34 @@ const DetailRow = ({ label, children }) => (
   </Box>
 );
 
+const GRID_COLS = "48px 60px 110px 1fr 100px 80px 110px 180px 40px";
+
 const Ticket = () => {
-  const [tickets, setTickets] = useState(mockTickets);
+  const [tickets, setTickets] = useState(TicketsData);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [search, setSearch] = useState("");
 
   const navigate = useNavigate();
-  const handleNewTicket = (ticket) => {
-    console.log("New ticket created:", ticket);
-    setTickets((prev) => {
-      const nextNum = prev.length + 1;
-      const newId = `TKT-${String(nextNum).padStart(3, "0")}`;
-      console.log("Assigned ID:", {
-        newId,
-        ticket,
-        nextNum,
-        newTicket: { ...ticket, id: newId, attachments: [] },
-      });
 
-      return [...prev, { ...ticket, id: newId, attachments: [] }];
-    });
+  const handleNewTicket = (ticket) => {
+    setTickets((prev) => [
+      ...prev,
+      { ...ticket, id: prev.length + 1 },
+    ]);
   };
 
   const filtered = tickets.filter(
     (t) =>
-      t.title.toLowerCase().includes(search.toLowerCase()) ||
-      t.id.toLowerCase().includes(search.toLowerCase()),
+      (t.Title || "").toLowerCase().includes(search.toLowerCase()) ||
+      String(t.id).includes(search),
   );
 
   return (
     <Box
       sx={{
-        minHeight: "100vh",
-        backgroundImage: "url('/BaseTheme.jpeg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        backgroundAttachment: "fixed",
+        minHeight: "100%",
+        overflowY: "auto",
         p: 4,
       }}
     >
@@ -152,7 +140,6 @@ const Ticket = () => {
             borderBottom: "1px solid #f0f0f0",
           }}
         >
-          {/* Search */}
           <Box
             sx={{
               display: "flex",
@@ -191,7 +178,7 @@ const Ticket = () => {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "56px 100px 1fr 130px 110px 110px 120px 40px",
+            gridTemplateColumns: GRID_COLS,
             px: 3,
             py: 1.2,
             backgroundColor: "#f9fafb",
@@ -201,15 +188,16 @@ const Ticket = () => {
           {[
             "",
             "ID",
+            "Date",
             "Title",
-            "Category",
-            "Priority",
+            "Client",
+            "Module",
+            "Environment",
             "Status",
-            "Created",
             "",
-          ].map((h) => (
+          ].map((h, i) => (
             <Typography
-              key={h}
+              key={i}
               variant="caption"
               fontWeight={700}
               sx={{
@@ -227,9 +215,8 @@ const Ticket = () => {
         {/* Table Rows */}
         {filtered.length > 0 ? (
           filtered.map((ticket, idx) => {
-            const pri = priorityColors[ticket.priority] || priorityColors.low;
-            const sta = statusColors[ticket.status] || statusColors.closed;
-            const dot = dotColors[ticket.status] || "#9e9e9e";
+            const sevColor = getSeverityColors(ticket.Status);
+            const dot = getDotColor(ticket.Status);
 
             return (
               <Box
@@ -237,8 +224,7 @@ const Ticket = () => {
                 onClick={() => setSelectedTicket(ticket)}
                 sx={{
                   display: "grid",
-                  gridTemplateColumns:
-                    "56px 100px 1fr 130px 110px 110px 120px 40px",
+                  gridTemplateColumns: GRID_COLS,
                   px: 3,
                   py: 1.6,
                   alignItems: "center",
@@ -267,7 +253,12 @@ const Ticket = () => {
                   fontWeight={600}
                   sx={{ color: "#374151", fontSize: 13 }}
                 >
-                  {ticket.id}
+                  #{ticket.id}
+                </Typography>
+
+                {/* Date */}
+                <Typography variant="body2" sx={{ color: "#9ca3af", fontSize: 12 }}>
+                  {ticket.Date}
                 </Typography>
 
                 {/* Title */}
@@ -283,63 +274,54 @@ const Ticket = () => {
                     pr: 2,
                   }}
                 >
-                  {ticket.title}
+                  {ticket.Title}
                 </Typography>
 
-                {/* Category */}
+                {/* Client */}
                 <Typography
                   variant="body2"
-                  sx={{
-                    color: "#6b7280",
-                    textTransform: "capitalize",
-                    fontSize: 13,
-                  }}
+                  sx={{ color: "#6b7280", fontSize: 13 }}
                 >
-                  {categoryOptions.find((opt) => opt.value === ticket.category)
-                    ?.label || "—"}
+                  {ticket["Client "]?.trim() || "—"}
                 </Typography>
 
-                {/* Priority */}
+                {/* Module */}
+                <Typography
+                  variant="body2"
+                  sx={{ color: "#6b7280", fontSize: 13 }}
+                >
+                  {ticket.Module || "—"}
+                </Typography>
+
+                {/* Environment */}
+                <Typography
+                  variant="body2"
+                  sx={{ color: "#6b7280", fontSize: 13 }}
+                >
+                  {ticket.Environment || "—"}
+                </Typography>
+
+                {/* Status / Severity */}
                 <Box>
                   <Chip
-                    label={ticket.priority || "—"}
+                    label={ticket.Status?.trim() || "—"}
                     size="small"
                     sx={{
-                      backgroundColor: pri.bg,
-                      color: pri.text,
+                      backgroundColor: sevColor.bg,
+                      color: sevColor.text,
                       fontWeight: 600,
-                      textTransform: "capitalize",
-                      fontSize: "0.7rem",
+                      fontSize: "0.68rem",
                       height: 22,
                       borderRadius: 1.5,
+                      maxWidth: 170,
+                      "& .MuiChip-label": {
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      },
                     }}
                   />
                 </Box>
-
-                {/* Status */}
-                <Box>
-                  <Chip
-                    label={(ticket.status || "—").replace("_", " ")}
-                    size="small"
-                    sx={{
-                      backgroundColor: sta.bg,
-                      color: sta.text,
-                      fontWeight: 600,
-                      textTransform: "capitalize",
-                      fontSize: "0.7rem",
-                      height: 22,
-                      borderRadius: 1.5,
-                    }}
-                  />
-                </Box>
-
-                {/* Created */}
-                <Typography
-                  variant="body2"
-                  sx={{ color: "#9ca3af", fontSize: 12 }}
-                >
-                  {ticket.createdAt}
-                </Typography>
 
                 {/* Arrow */}
                 <ChevronRightIcon sx={{ fontSize: 18, color: "#d1d5db" }} />
@@ -370,62 +352,86 @@ const Ticket = () => {
         )}
       </Box>
 
-      {/* ── Ticket Detail Dialog ── */}
+      {/* ── Ticket Detail Dialog (80% width × height) ── */}
       <Dialog
         open={!!selectedTicket}
         onClose={() => setSelectedTicket(null)}
-        maxWidth="sm"
-        fullWidth
         PaperProps={{
           sx: {
+            width: "80vw",
+            maxWidth: "80vw",
+            height: "80vh",
+            maxHeight: "80vh",
             borderRadius: 3,
-            boxShadow: "0 16px 48px rgba(0,0,0,0.16)",
+            boxShadow: "0 16px 48px rgba(0,0,0,0.18)",
+            display: "flex",
+            flexDirection: "column",
           },
         }}
       >
         {selectedTicket && (
-          <DialogContent sx={{ p: 0 }}>
+          <DialogContent
+            sx={{
+              p: 0,
+              display: "flex",
+              flexDirection: "column",
+              height: "100%",
+              overflow: "hidden",
+            }}
+          >
             {/* Dialog Header */}
             <Box
               sx={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "flex-start",
-                px: 3,
+                px: 4,
                 pt: 3,
                 pb: 2,
                 borderBottom: "1px solid #f0f0f0",
+                flexShrink: 0,
               }}
             >
-              <Box>
+              <Box sx={{ flex: 1, pr: 2 }}>
                 <Typography
                   variant="caption"
                   fontWeight={700}
                   sx={{ color: "#9ca3af", letterSpacing: 0.6 }}
                 >
-                  {selectedTicket.id}
+                  TICKET #{selectedTicket.id}
                 </Typography>
                 <Typography
                   variant="h6"
                   fontWeight={700}
-                  sx={{ color: "#111827", mt: 0.3, lineHeight: 1.3 }}
+                  sx={{ color: "#111827", mt: 0.3, lineHeight: 1.4 }}
                 >
-                  {selectedTicket.title}
+                  {selectedTicket.Title}
                 </Typography>
               </Box>
               <IconButton
                 size="small"
                 onClick={() => setSelectedTicket(null)}
-                sx={{ mt: -0.5 }}
+                sx={{ mt: -0.5, flexShrink: 0 }}
               >
                 <CloseIcon fontSize="small" />
               </IconButton>
             </Box>
 
-            {/* Dialog Body */}
-            <Box sx={{ px: 3, pt: 1, pb: 3 }}>
-              {/* Description */}
-              <Box sx={{ py: 2 }}>
+            {/* Dialog Body — scrollable */}
+            <Box
+              sx={{
+                flex: 1,
+                overflowY: "auto",
+                px: 4,
+                py: 3,
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 0,
+                alignContent: "start",
+              }}
+            >
+              {/* Left column */}
+              <Box sx={{ pr: 4, borderRight: "1px solid #f0f0f0" }}>
                 <Typography
                   variant="caption"
                   fontWeight={700}
@@ -433,33 +439,21 @@ const Ticket = () => {
                     color: "#9ca3af",
                     textTransform: "uppercase",
                     letterSpacing: 0.6,
+                    display: "block",
+                    mb: 1,
                   }}
                 >
-                  Description
+                  Issue Details
                 </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ color: "#374151", mt: 1, lineHeight: 1.8 }}
-                >
-                  {selectedTicket.description || "No description provided."}
-                </Typography>
-              </Box>
 
-              <Divider sx={{ borderColor: "#f0f0f0" }} />
-
-              {/* Meta details */}
-              <Box sx={{ mt: 1 }}>
                 <DetailRow label="Status">
                   <Chip
-                    label={selectedTicket.status?.replace("_", " ")}
+                    label={selectedTicket.Status?.trim() || "—"}
                     size="small"
                     sx={{
-                      backgroundColor:
-                        statusColors[selectedTicket.status]?.bg || "#f5f5f5",
-                      color:
-                        statusColors[selectedTicket.status]?.text || "#555",
+                      backgroundColor: getSeverityColors(selectedTicket.Status).bg,
+                      color: getSeverityColors(selectedTicket.Status).text,
                       fontWeight: 600,
-                      textTransform: "capitalize",
                       fontSize: "0.75rem",
                       borderRadius: 1.5,
                     }}
@@ -467,38 +461,44 @@ const Ticket = () => {
                 </DetailRow>
                 <Divider sx={{ borderColor: "#f9f9f9" }} />
 
-                <DetailRow label="Category">
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "#374151", textTransform: "capitalize" }}
-                  >
-                    {selectedTicket.category?.replace("_", " ") || "—"}
+                <DetailRow label="Ticket Category">
+                  <Typography variant="body2" sx={{ color: "#374151" }}>
+                    {selectedTicket["Ticket Category"] || "—"}
                   </Typography>
                 </DetailRow>
                 <Divider sx={{ borderColor: "#f9f9f9" }} />
 
-                <DetailRow label="Priority">
-                  <Chip
-                    label={selectedTicket.priority}
-                    size="small"
-                    sx={{
-                      backgroundColor:
-                        priorityColors[selectedTicket.priority]?.bg ||
-                        "#f5f5f5",
-                      color:
-                        priorityColors[selectedTicket.priority]?.text || "#555",
-                      fontWeight: 600,
-                      textTransform: "capitalize",
-                      fontSize: "0.75rem",
-                      borderRadius: 1.5,
-                    }}
-                  />
+                <DetailRow label="Module">
+                  <Typography variant="body2" sx={{ color: "#374151" }}>
+                    {selectedTicket.Module || "—"}
+                  </Typography>
                 </DetailRow>
                 <Divider sx={{ borderColor: "#f9f9f9" }} />
 
-                <DetailRow label="Created">
+                <DetailRow label="Environment">
                   <Typography variant="body2" sx={{ color: "#374151" }}>
-                    {selectedTicket.createdAt}
+                    {selectedTicket.Environment || "—"}
+                  </Typography>
+                </DetailRow>
+                <Divider sx={{ borderColor: "#f9f9f9" }} />
+
+                <DetailRow label="Date">
+                  <Typography variant="body2" sx={{ color: "#374151" }}>
+                    {selectedTicket.Date || "—"}
+                  </Typography>
+                </DetailRow>
+                <Divider sx={{ borderColor: "#f9f9f9" }} />
+
+                <DetailRow label="Client">
+                  <Typography variant="body2" sx={{ color: "#374151" }}>
+                    {selectedTicket["Client "]?.trim() || "—"}
+                  </Typography>
+                </DetailRow>
+                <Divider sx={{ borderColor: "#f9f9f9" }} />
+
+                <DetailRow label="Delivery SPOC">
+                  <Typography variant="body2" sx={{ color: "#374151" }}>
+                    {selectedTicket["Delivery SPOC"] || "—"}
                   </Typography>
                 </DetailRow>
                 <Divider sx={{ borderColor: "#f9f9f9" }} />
@@ -507,11 +507,50 @@ const Ticket = () => {
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={() =>   navigate(`/conversation/${selectedTicket.id}`)}
+                    onClick={() =>
+                      navigate(`/conversation/${selectedTicket.id}`)
+                    }
+                    sx={{
+                      textTransform: "none",
+                      borderColor: "#4a6741",
+                      color: "#4a6741",
+                      "&:hover": {
+                        borderColor: "#3a5232",
+                        backgroundColor: "#f0f4ef",
+                      },
+                    }}
                   >
                     View Conversation
                   </Button>
                 </DetailRow>
+              </Box>
+
+              {/* Right column — Issues / Description */}
+              <Box sx={{ pl: 4 }}>
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  sx={{
+                    color: "#9ca3af",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.6,
+                    display: "block",
+                    mb: 1,
+                  }}
+                >
+                  Issue Description
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "#374151",
+                    lineHeight: 1.9,
+                    whiteSpace: "pre-wrap",
+                    mt: 1,
+                  }}
+                >
+                  {selectedTicket.Issues || "No description provided."}
+                </Typography>
               </Box>
             </Box>
           </DialogContent>

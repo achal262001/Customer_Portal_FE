@@ -124,13 +124,9 @@ const Dashboard = () => {
   return (
     <Box
       sx={{
-        height: "100vh",
+        height: "100%",
         display: "flex",
         flexDirection: "column",
-        backgroundImage: "url('/BaseTheme.jpeg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
         overflow: "hidden",
         pt: 3,
         pb: 2,

@@ -77,12 +77,8 @@ const CommunicationHub = () => {
   return (
     <Box
       sx={{
-        height: "100vh",
+        height: "100%",
         display: "flex",
-        backgroundImage: "url('/BaseTheme.jpeg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
         overflow: "hidden",
       }}
     >
