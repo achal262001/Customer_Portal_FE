@@ -1,25 +1,36 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Box, Grid, Paper, Typography } from "@mui/material";
 
 const features = [
-  "Ticket Creation",
-  "Customer Dashboard",
-  "Communication Hub",
-  "AI Powered Features",
-  "Project Overview",
+  { label: "Ticket Creation", path: "/home/ticket" },
+  { label: "Customer Dashboard", path: "/home/dashboard" },
+  { label: "Communication Hub", path: "/home/communication-hub" },
+  // { label: "Project Overview", path: "/home/project-overview" },
 ];
 
 const Home = () => {
+  const navigate = useNavigate();
+
+  const handleClick = (path) => {
+    console.log("Navigating to:", path);
+    navigate(path);
+  };
+
   return (
     <Box
       sx={{
         minHeight: "100vh",
-        backgroundColor: "#f5f5f5",
+        backgroundImage: "url('/BaseTheme.jpeg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundAttachment: "fixed",
         padding: 4,
       }}
     >
       <Typography variant="h4" mb={3}>
-        Home Dashboard
+        Home 
       </Typography>
 
       <Grid container spacing={3}>
@@ -27,6 +38,7 @@ const Home = () => {
           <Grid item xs={12} sm={6} md={4} key={index}>
             <Paper
               elevation={3}
+              onClick={() => handleClick(item.path)}
               sx={{
                 padding: 3,
                 height: 120,
@@ -43,7 +55,7 @@ const Home = () => {
               }}
             >
               <Typography variant="h6" align="center">
-                {item}
+                {item.label}
               </Typography>
             </Paper>
           </Grid>
