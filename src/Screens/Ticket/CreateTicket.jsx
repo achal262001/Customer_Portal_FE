@@ -126,7 +126,7 @@ const CreateTicket = ({ onSubmit, onClose }) => {
             />
           </Box>
 
-          <Box>
+          {/* <Box>
             <Typography variant="body2" fontWeight={500} mb={0.8}>
               Status
             </Typography>
@@ -137,7 +137,7 @@ const CreateTicket = ({ onSubmit, onClose }) => {
               label="Select status"
               style={{ width: "100%" }}
             />
-          </Box>
+          </Box> */}
 
           <Box>
             <Typography variant="body2" fontWeight={500} mb={0.8}>

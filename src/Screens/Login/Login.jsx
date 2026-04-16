@@ -72,7 +72,7 @@ const Login = () => {
             <Box sx={{ width: 14, height: 14, backgroundColor: "#fff", borderRadius: "2px", transform: "rotate(45deg)" }} />
           </Box>
           <Typography sx={{ fontWeight: 700, fontSize: 20, color: "#2d2d2d", letterSpacing: 0.5 }}>
-            custmore
+            Relay Customer Portal
           </Typography>
         </Box>
 
@@ -85,9 +85,9 @@ const Login = () => {
         </Typography>
 
         {/* Email Field */}
-        <Typography variant="caption" fontWeight={600} sx={{ color: "#3d3d3d", mb: 0.6, display: "block" }}>
+        {/* <Typography variant="caption" fontWeight={600} sx={{ color: "#3d3d3d", mb: 0.6, display: "block" }}>
           Email Address
-        </Typography>
+        </Typography> */}
         <FormControl fullWidth sx={{ mb: 2.5 }}>
           <OutlinedInput
             placeholder="Email Address"
@@ -111,9 +111,9 @@ const Login = () => {
         </FormControl>
 
         {/* Password Field */}
-        <Typography variant="caption" fontWeight={600} sx={{ color: "#3d3d3d", mb: 0.6, display: "block" }}>
+        {/* <Typography variant="caption" fontWeight={600} sx={{ color: "#3d3d3d", mb: 0.6, display: "block" }}>
           Password
-        </Typography>
+        </Typography> */}
         <FormControl fullWidth sx={{ mb: 3.5 }}>
           <OutlinedInput
             placeholder="Password"

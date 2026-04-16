@@ -20,47 +20,61 @@ const Home = () => {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        height: "100vh",
         backgroundImage: "url('/BaseTheme.jpeg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
         backgroundAttachment: "fixed",
+        display: "flex",
+        flexDirection: "column",
         padding: 4,
       }}
     >
-      <Typography variant="h4" mb={3}>
-        Home 
+      {/* Title — stays at the top */}
+      <Typography variant="h4" fontWeight={700}>
+        Welcome to Relay's Home
       </Typography>
 
-      <Grid container spacing={3}>
-        {features.map((item, index) => (
-          <Grid item xs={12} sm={6} md={4} key={index}>
-            <Paper
-              elevation={3}
-              onClick={() => handleClick(item.path)}
-              sx={{
-                padding: 3,
-                height: 120,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 3,
-                cursor: "pointer",
-                transition: "0.3s",
-                "&:hover": {
-                  backgroundColor: "#e3f2fd",
-                  transform: "scale(1.03)",
-                },
-              }}
-            >
-              <Typography variant="h6" align="center">
-                {item.label}
-              </Typography>
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
+      {/* Grid — centered against full viewport, offset by header height */}
+      <Box
+        sx={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pb: "80px", 
+        }}
+      >
+        <Grid container spacing={3} sx={{ maxWidth: 900 }}>
+          {features.map((item, index) => (
+            <Grid item xs={12} sm={6} md={4} key={index}>
+              <Paper
+                elevation={3}
+                onClick={() => handleClick(item.path)}
+                sx={{
+                  padding: 3,
+                  height: 120,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                  transition: "0.3s",
+                  "&:hover": {
+                    backgroundColor: "#e3f2fd",
+                    transform: "scale(1.03)",
+                  },
+                }}
+              >
+                <Typography variant="h6" align="center">
+                  {item.label}
+                </Typography>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
     </Box>
   );
 }
