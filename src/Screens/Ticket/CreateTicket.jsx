@@ -18,7 +18,7 @@ const CreateTicket = ({ onSubmit, onClose }) => {
     description: "",
     category: "",
     priority: "",
-    status: "",
+    status: "open",
     attachments: [],
   });
 
@@ -51,7 +51,14 @@ const CreateTicket = ({ onSubmit, onClose }) => {
   };
 
   return (
-    <Box sx={{ width: 480, height: "100%", display: "flex", flexDirection: "column" }}>
+    <Box
+      sx={{
+        width: 480,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       {/* Header */}
       <Box
         sx={{
@@ -105,9 +112,9 @@ const CreateTicket = ({ onSubmit, onClose }) => {
               Category
             </Typography>
             <Select
-              value={form.category}
+              value={categoryOptions.find((opt) => opt.value === form.category) || ""}
               options={categoryOptions}
-              onChange={(value) => handleChange("category", value)}
+              onChange={(item) => handleChange("category", item.value)}
               label="Select category"
               style={{ width: "100%" }}
             />
@@ -120,7 +127,7 @@ const CreateTicket = ({ onSubmit, onClose }) => {
             <Select
               value={form.priority}
               options={priorityOptions}
-              onChange={(value) => handleChange("priority", value)}
+              onChange={(item) => handleChange("priority", item.value)}
               label="Select priority"
               style={{ width: "100%" }}
             />
