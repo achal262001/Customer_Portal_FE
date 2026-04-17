@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Grid, Paper, Typography } from "@mui/material";
+import { useLocation } from "react-router-dom";
 
 const features = [
   { label: "Ticket Creation", path: "/home/ticket" },
@@ -11,6 +12,10 @@ const features = [
 
 const Home = () => {
   const navigate = useNavigate();
+
+  const location = useLocation();
+  const user = location.state?.user;
+  console.log("User on Home:", user);
 
   const handleClick = (path) => {
     console.log("Navigating to:", path);
@@ -43,7 +48,7 @@ const Home = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          pb: "80px", 
+          pb: "80px",
         }}
       >
         <Grid container spacing={3} sx={{ maxWidth: 900 }}>
@@ -77,6 +82,6 @@ const Home = () => {
       </Box>
     </Box>
   );
-}
+};
 
 export default Home;
