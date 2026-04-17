@@ -223,6 +223,8 @@ const TicketDetailDialog = ({ ticket, onClose }) => {
             <DetailRow label="Delivery SPOC">
               <Typography sx={{ fontSize: 13, color: "#374151" }}>{ticket.spoc || "—"}</Typography>
             </DetailRow>
+            <Divider sx={{ borderColor: "#F9F9F9" }} />
+
           </Box>
 
           {/* Right — issue description */}
@@ -246,10 +248,10 @@ const TicketDetailDialog = ({ ticket, onClose }) => {
 // ═════════════════════════════════════════════════════════════════════════════
 const DashboardPanel = () => {
   const metrics = [
-    { label: "Open issues",      value: 12,     sub: "↑ 3 this week",          valueColor: "#185FA5" },
-    { label: "SLA at risk",      value: 4,      sub: "Next breach in 2h",       valueColor: "#E24B4A" },
+    { label: "Open issues",      value: 9,     sub: "↑ 3 this week",          valueColor: "#185FA5" },
+    // { label: "SLA at risk",      value: 4,      sub: "Next breach in 2h",       valueColor: "#E24B4A" },
     { label: "Avg resolution",   value: "3.4d", sub: "Last 30 days",            valueColor: "#111827" },
-    { label: "Closed this month",value: 9,      sub: "+18% vs prior month",     valueColor: "#639922" },
+    { label: "Closed this month",value: 0,      sub: "+0 vs prior month",     valueColor: "#639922" },
   ];
   const slaItems = [
     { title: "TKT-004 · Calendar Save Fails",  sev: "S1", pct: 87, risk: "87% breach risk – due in 2h",  barColor: "#E24B4A" },
@@ -277,7 +279,7 @@ const DashboardPanel = () => {
 
         {/* Number of Tickets vs Date */}
         <Card>
-          <CardTitle>Number of Tickets vs Date</CardTitle>
+          <CardTitle>Ticket Volumn Over Time</CardTitle>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={ticketsByDate} margin={{ top: 4, right: 8, left: -20, bottom: 60 }}>
               <defs>
@@ -451,32 +453,78 @@ const AllTicketsPanel = () => {
 // ═════════════════════════════════════════════════════════════════════════════
 const MyTicketsPanel = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
-  const myTickets = tickets.filter(t => t.status !== "Closed").slice(0, 5);
-  const lastUpdates = ["2h ago", "Yesterday", "3d ago", "1d ago", "5h ago"];
+  const [search,     setSearch]     = useState("");
+  const [filterMod,  setFilterMod]  = useState("");
+  const [filterSev,  setFilterSev]  = useState("");
+  const [filterStat, setFilterStat] = useState("");
+
+  const lastUpdates = ["2h ago", "Yesterday", "3d ago", "1d ago", "5h ago", "4h ago", "6d ago", "3h ago", "2d ago", "1h ago"];
+
+  const selSx = {
+    fontSize: 13, border: "0.5px solid #D1D5DB", borderRadius: "6px",
+    px: 1.2, py: "6px", backgroundColor: "#fff", color: "#374151",
+    outline: "none", cursor: "pointer", fontFamily: "inherit",
+  };
+
+  const myTickets = tickets
+    .filter(t => t.module !== "EDM")
+    .filter(t =>
+      (!search     || t.title.toLowerCase().includes(search.toLowerCase()) || String(t.id).includes(search)) &&
+      (!filterMod  || t.module === filterMod) &&
+      (!filterSev  || t.sev === filterSev) &&
+      (!filterStat || t.status === filterStat)
+    );
 
   return (
     <Box>
       <TicketDetailDialog ticket={selectedTicket} onClose={() => setSelectedTicket(null)} />
+
+      {/* Filter bar */}
+      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5, alignItems: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, flex: 1, minWidth: 160, backgroundColor: "#fff", border: "0.5px solid #D1D5DB", borderRadius: "6px", px: 1.2, py: "6px" }}>
+          <SearchIcon sx={{ fontSize: 16, color: "#9CA3AF", flexShrink: 0 }} />
+          <Box component="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tickets…" sx={{ border: "none", outline: "none", fontSize: 13, color: "#111827", background: "transparent", width: "100%", fontFamily: "inherit" }} />
+        </Box>
+        <Box component="select" value={filterMod} onChange={e => setFilterMod(e.target.value)} sx={selSx}>
+          <option value="">All modules</option>
+          {["DPAI","DS","TMS"].map(m => <option key={m}>{m}</option>)}
+        </Box>
+        <Box component="select" value={filterSev} onChange={e => setFilterSev(e.target.value)} sx={selSx}>
+          <option value="">All severities</option>
+          {["S1","S2","S3"].map(s => <option key={s}>{s}</option>)}
+        </Box>
+        <Box component="select" value={filterStat} onChange={e => setFilterStat(e.target.value)} sx={selSx}>
+          <option value="">All statuses</option>
+          {["Open","In Progress"].map(s => <option key={s}>{s}</option>)}
+        </Box>
+      </Box>
+
       <Card sx={{ overflowX: "auto" }}>
         <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
           <Box component="thead">
             <Box component="tr">
-              {["Ids","Title","Module","Severity","Status","Last update"].map(h => <TH key={h}>{h}</TH>)}
+              {["ID","Title","Module","Severity","Status","Last update"].map(h => <TH key={h}>{h}</TH>)}
             </Box>
           </Box>
           <Box component="tbody">
-            {myTickets.map((t, i) => (
-              <Box component="tr" key={t.id} onClick={() => setSelectedTicket(t)} sx={{ cursor: "pointer", "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
-                <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{t.id}</TD>
-                <TD>
-                  <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography>
-                </TD>
-                <TD><ModTag m={t.module} /></TD>
-                <TD><SevTag sev={t.sev} /></TD>
-                <TD><StatTag status={t.status} /></TD>
-                <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{lastUpdates[i] || "—"}</TD>
+            {myTickets.length === 0 ? (
+              <Box component="tr">
+                <Box component="td" colSpan={6} sx={{ textAlign: "center", py: 5, color: "#9CA3AF", fontSize: 13 }}>
+                  No tickets match your filters.
+                </Box>
               </Box>
-            ))}
+            ) : (
+              myTickets.map((t, i) => (
+                <Box component="tr" key={t.id} onClick={() => setSelectedTicket(t)} sx={{ cursor: "pointer", "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
+                  <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{`TKT-${String(t.id).padStart(3,"0")}`}</TD>
+                  <TD><Typography sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography></TD>
+                  <TD><ModTag m={t.module} /></TD>
+                  <TD><SevTag sev={t.sev} /></TD>
+                  <TD><StatTag status={t.status} /></TD>
+                  <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{lastUpdates[i % lastUpdates.length]}</TD>
+                </Box>
+              ))
+            )}
           </Box>
         </Box>
       </Card>
@@ -689,11 +737,11 @@ const RaiseIssuePanel = () => {
 
           {/* Client (optional) */}
           <Box>
-            <Typography component="label" sx={labelSx}>Client</Typography>
+            {/* <Typography component="label" sx={labelSx}>Client</Typography>
             <Box component="select" value={form.client} onChange={e => setField("client", e.target.value)} sx={selectSx(false)}>
               <option value="">Select client (optional)</option>
               <option>Client 1</option><option>Client 2</option><option>Client 3</option>
-            </Box>
+            </Box> */}
             <Box>
               <Typography component="label" sx={labelSx}>Project <span style={{ color: "#A32D2D" }}>*</span></Typography>
               <Box component="select" value={form.project} onChange={e => setField("project", e.target.value)} sx={selectSx(errors.project)}>
@@ -874,16 +922,16 @@ const ProjectsPanel = () => (
 // ═════════════════════════════════════════════════════════════════════════════
 const TABS = [
   { key: "dashboard",  label: "Dashboard"      },
-  { key: "alltickets", label: "All tickets"     },
+  // { key: "alltickets", label: "All tickets"     },
   { key: "mytickets",  label: "My tickets"      },
-  { key: "raise",      label: "Raise an issue"  },
+  { key: "raise",      label: "Raise a Ticket"  },
   { key: "analytics",  label: "Analytics"       },
   { key: "projects",   label: "Projects"        },
 ];
 
 const PANELS = {
   dashboard:  <DashboardPanel />,
-  alltickets: <AllTicketsPanel />,
+  // alltickets: <AllTicketsPanel />,
   mytickets:  <MyTicketsPanel />,
   raise:      <RaiseIssuePanel />,
   analytics:  <AnalyticsPanel />,

@@ -1,3 +1,4 @@
+import { Typography } from "@mui/material";
 import { useState } from "react";
 
 // ── Color tokens matching admin_ticketing_portal.html ──────────────────────
@@ -532,15 +533,15 @@ const NAV_ITEMS = [
           </svg>
         ),
       },
-      {
-        key: "kb",
-        label: "Knowledge base",
-        icon: (
-          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2} style={{ flexShrink: 0 }}>
-            <path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-          </svg>
-        ),
-      },
+      // {
+      //   key: "kb",
+      //   label: "Knowledge base",
+      //   icon: (
+      //     <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2} style={{ flexShrink: 0 }}>
+      //       <path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+      //     </svg>
+      //   ),
+      // },
       {
         key: "settings",
         label: "Settings",
@@ -603,6 +604,11 @@ const TicketDetailDialog = ({ ticket, onClose }) => {
             <DetailRow label="Module"><ModBadge mod={ticket.mod} /></DetailRow>
             <DetailRow label="Date"><span style={{ fontSize: 13, color: C.text }}>{ticket.date}</span></DetailRow>
             <DetailRow label="SPOC"><span style={{ fontSize: 13, color: C.text }}>{ticket.spoc}</span></DetailRow>
+            <DetailRow label="Description">
+              <Typography sx={{ fontSize: 13, color: "#374151", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>
+                {ticket.description || "No description provided."}
+              </Typography>
+            </DetailRow>
           </div>
 
           {/* Right column */}
@@ -683,9 +689,6 @@ const DashboardSection = () => {
         <Btn sm ghost>Export report</Btn>
         <Btn sm variant="primary">+ New ticket</Btn>
       </SHeader>
-      {/* <AlertBanner type="danger">
-        4 tickets are at critical SLA breach risk — immediate action required.
-      </AlertBanner> */}
 
       {/* Metric cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 18 }}>
@@ -701,7 +704,7 @@ const DashboardSection = () => {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
         {/* Client vs Number of Tickets bar chart */}
         <Card>
-          <CardTitle>Tickets by client</CardTitle>
+          <CardTitle>Tickets Volumn Over Time</CardTitle>
           {(() => {
             const counts = {};
             ADMIN_TICKETS.forEach(t => { counts[t.client] = (counts[t.client] || 0) + 1; });
@@ -1208,10 +1211,10 @@ const ClientsSection = () => {
 // ── TEAM SECTION ───────────────────────────────────────────────────────────
 const TeamSection = () => {
   const members = [
-    { initials: "NK", name: "Nikita K.", role: "SPOC", roleSx: { background: "#EEEDFE", color: "#3C3489" }, stats: "12 active · Client 2 · Avg 3.1d", avSx: { background: C.blueBg, color: C.blueDark }, workload: 85, wColor: C.red, tickets: 12 },
-    { initials: "RM", name: "Ravi M.", role: "SPOC", roleSx: { background: "#EEEDFE", color: "#3C3489" }, stats: "8 active · Client 1 · Avg 2.8d", avSx: { background: "#FBEAF0", color: "#72243E" }, workload: 58, wColor: C.orange, tickets: 8 },
-    { initials: "PS", name: "Priya S.", role: "SPOC", roleSx: { background: "#EEEDFE", color: "#3C3489" }, stats: "6 active · Client 3 · Avg 3.5d", avSx: { background: C.successBg, color: "#27500A" }, workload: 43, wColor: "#378ADD", tickets: 6 },
-    { initials: "AT", name: "Arjun T.", role: "Agent", roleSx: { background: "#E1F5EE", color: "#085041" }, stats: "4 active · All clients · Avg 4.1d", avSx: { background: "#EEEDFE", color: "#3C3489" }, workload: 28, wColor: C.green, tickets: 4 },
+    { initials: "NK", name: "Nikita K.", role: "LEAD", roleSx: { background: "#EEEDFE", color: "#3C3489" }, technicalRole: "Engineering", technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" }, stats: "12 active · Client 2 · Avg 3.1d", avSx: { background: C.blueBg, color: C.blueDark }, workload: 85, wColor: C.red, tickets: 12 },
+    { initials: "RM", name: "Ravi M.", role: "LEAD", roleSx: { background: "#EEEDFE", color: "#3C3489" }, technicalRole: "DS", technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" }, stats: "8 active · Client 1 · Avg 2.8d", avSx: { background: "#FBEAF0", color: "#72243E" }, workload: 58, wColor: C.orange, tickets: 8 },
+    { initials: "PS", name: "Priya S.", role: "LEAD", roleSx: { background: "#EEEDFE", color: "#3C3489" }, technicalRole: "Product", technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" }, stats: "6 active · Client 3 · Avg 3.5d", avSx: { background: C.successBg, color: "#27500A" }, workload: 43, wColor: "#378ADD", tickets: 6 },
+    { initials: "AT", name: "Arjun T.", role: "SPOC", roleSx: { background: "#E1F5EE", color: "#085041" }, technicalRole: "Delivery", technicalRoleSx: { background: "#E1F5EE", color: "#b77e3c" }, stats: "4 active · All clients · Avg 4.1d", avSx: { background: "#E1F5EE", color: "#085041" }, workload: 72, wColor: C.orange, tickets: 4 },
   ];
 
   return (
@@ -1226,7 +1229,7 @@ const TeamSection = () => {
               <div style={{ width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 500, flexShrink: 0, ...m.avSx }}>{m.initials}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</div>
-                <div style={{ fontSize: 11 }}><Badge style={m.roleSx}>{m.role}</Badge></div>
+                <div style={{ fontSize: 11,gap:2, display:"flex" ,justifyContent:"center"}}><Badge style={m.roleSx}>{m.role}</Badge><Badge style={m.technicalRoleSx}>{m.technicalRole}</Badge></div>
                 <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{m.stats}</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1576,7 +1579,7 @@ const AdminLayout = () => {
     analytics: <AnalyticsSection />,
     projects: <ProjectsSection />,
     sla: <SlaSection />,
-    kb: <KbSection />,
+    // kb: <KbSection />,
     settings: <SettingsSection />,
   };
 
@@ -1590,7 +1593,7 @@ const AdminLayout = () => {
               <path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /><path d="M16 3H8v4h8V3z" />
             </svg>
           </div>
-          <span style={{ fontSize: 14, fontWeight: 500 }}>SupportDesk</span>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>Relay</span>
           <span style={{ fontSize: 11, fontWeight: 500, background: C.dangerBg, color: C.danger, padding: "2px 8px", borderRadius: 4, marginLeft: 6 }}>Admin</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
