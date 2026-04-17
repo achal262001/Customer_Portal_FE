@@ -40,10 +40,10 @@ const Login = () => {
     <Box
       sx={{
         height: "100vh",
-        backgroundImage: "url('/LoginTheme.png')",
-        backgroundSize: "contain",
-        backgroundPosition: "center",
-        backgroundRepeat: "repeat",
+        // backgroundImage: "url('/LoginTheme.png')",
+        // backgroundSize: "contain",
+        // backgroundPosition: "center",
+        // backgroundRepeat: "repeat",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
