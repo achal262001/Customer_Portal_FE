@@ -221,23 +221,202 @@ const SlaTrack = ({ pct, severity }) => {
 
 // ── Admin ticket data ──────────────────────────────────────────────────────
 const ADMIN_TICKETS = [
-  { id: "TKT-001", title: "Calendar Save Fails with 400 Error", client: "Client 2", mod: "DPAI", sev: "S1", status: "Escalated", spoc: "Nikita K.", date: "2025-09-19" },
-  { id: "TKT-002", title: "Multi-issue rollup", client: "Client 1", mod: "TMS", sev: "S3", status: "Closed", spoc: "Ravi M.", date: "2025-12-23" },
-  { id: "TKT-003", title: "Incorrect Data after Migration", client: "Client 2", mod: "DPAI", sev: "S1", status: "In Progress", spoc: "Nikita K.", date: "2025-10-10" },
-  { id: "TKT-004", title: "Workflow approval not triggering", client: "Client 3", mod: "TMS", sev: "S2", status: "Open", spoc: "Priya S.", date: "2025-11-05" },
-  { id: "TKT-005", title: "Report export fails silently", client: "Client 1", mod: "DS", sev: "S3", status: "Closed", spoc: "Ravi M.", date: "2025-10-22" },
-  { id: "TKT-006", title: "Login redirect loop on SSO", client: "Client 2", mod: "DPAI", sev: "S1", status: "Escalated", spoc: "Nikita K.", date: "2025-11-18" },
-  { id: "TKT-007", title: "Data sync timeout after 30s", client: "Client 3", mod: "DS", sev: "S2", status: "In Progress", spoc: "Priya S.", date: "2025-12-01" },
-  { id: "TKT-008", title: "Config missing after UAT reset", client: "Client 2", mod: "DPAI", sev: "S2", status: "Closed", spoc: "Nikita K.", date: "2025-12-15" },
-  { id: "TKT-009", title: "Notification email not sent", client: "Client 1", mod: "TMS", sev: "S2", status: "Open", spoc: "Ravi M.", date: "2026-01-08" },
-  { id: "TKT-010", title: "UI alignment broken on mobile", client: "Client 3", mod: "DPAI", sev: "S3", status: "Open", spoc: "Priya S.", date: "2026-01-14" },
-  { id: "TKT-011", title: "API timeout on bulk operations", client: "Client 1", mod: "DS", sev: "S1", status: "Escalated", spoc: "Ravi M.", date: "2026-02-01" },
-  { id: "TKT-012", title: "Duplicate records after import", client: "Client 2", mod: "DS", sev: "S2", status: "Open", spoc: "Nikita K.", date: "2026-02-10" },
-  { id: "TKT-013", title: "PDF generation hangs", client: "Client 3", mod: "TMS", sev: "S3", status: "In Progress", spoc: "Priya S.", date: "2026-03-05" },
-  { id: "TKT-014", title: "Role permissions not saving", client: "Client 1", mod: "DPAI", sev: "S2", status: "Open", spoc: "Ravi M.", date: "2026-03-12" },
-  { id: "TKT-015", title: "Timezone mismatch in schedules", client: "Client 2", mod: "TMS", sev: "S3", status: "Closed", spoc: "Nikita K.", date: "2026-03-20" },
+  { 
+    id: "TKT-01",
+    description: "While configuring a calendar the system does not allow saving and returns status code: 400",
+    title: "Calendar Save Fails with 400 Error",
+    client: "Client 2",
+    mod: "DPAI",
+    sev: "S1",
+    status: "Escalated",
+    spoc: "Nikita K.",
+    date: "2025-09-19",
+    category: "Environment issue",
+    environment: "UAT"
+  },
+  { 
+    id: "TKT-02",
+    description: "Getting error while performing complete loading in TMS",
+    title: "Multi-issue rollup",
+    client: "Client 1",
+    mod: "TMS",
+    sev: "S3",
+    status: "Closed",
+    spoc: "Ravi M.",
+    date: "2025-12-23",
+    category: "Bug (Code defect)",
+    environment: "Prod"
+  },
+  { 
+    id: "TKT-03",
+    description: "The forecast with trigger date as 09-10-2025 isn’t generated yet and the status remains 'Forecast in Progress'.",
+    title: "Incorrect Data after Migration",
+    client: "Client 2",
+    mod: "DPAI",
+    sev: "S1",
+    status: "In Progress",
+    spoc: "Nikita K.",
+    date: "2025-10-10",
+    category: "Environment issue",
+    environment: "Prod"
+  },
+  { 
+    id: "TKT-04",
+    description: "Route Re Sync button has bug, routes are reflecting even when not maintained in Route Master",
+    title: "Workflow approval not triggering",
+    client: "Client 3",
+    mod: "TMS",
+    sev: "S2",
+    status: "Open",
+    spoc: "Priya S.",
+    date: "2025-11-05",
+    category: "Bug (Code defect)",
+    environment: "Prod"
+  },
+  { 
+    id: "TKT-05",
+    description: "When attempting to download the forecast from the grid, the system displays 'Download Failed, Please Try Again'.",
+    title: "Report export fails silently",
+    client: "Client 1",
+    mod: "DS",
+    sev: "S3",
+    status: "Closed",
+    spoc: "Ravi M.",
+    date: "2025-10-22",
+    category: "Configuration gap",
+    environment: "UAT"
+  },
+  { 
+    id: "TKT-06",
+    description: "On Prod platform, the forecast has generated successfully but on UI it is not visible",
+    title: "Login redirect loop on SSO",
+    client: "Client 2",
+    mod: "DPAI",
+    sev: "S1",
+    status: "Escalated",
+    spoc: "Nikita K.",
+    date: "2025-11-18",
+    category: "Other",
+    environment: "Prod"
+  },
+  { 
+    id: "TKT-07",
+    description: "Abnormal spike in forecast values for the last two horizons.",
+    title: "Data sync timeout after 30s",
+    client: "Client 3",
+    mod: "DS",
+    sev: "S2",
+    status: "In Progress",
+    spoc: "Priya S.",
+    date: "2025-12-01",
+    category: "Bug (Code defect)",
+    environment: "Prod"
+  },
+  { 
+    id: "TKT-08",
+    description: "The forecast status is showing as 'In Progress' even though the SNOP was successfully created.",
+    title: "Config missing after UAT reset",
+    client: "Client 2",
+    mod: "DPAI",
+    sev: "S2",
+    status: "Closed",
+    spoc: "Nikita K.",
+    date: "2025-12-15",
+    category: "Other",
+    environment: "UAT"
+  },
+  { 
+    id: "TKT-09",
+    description: "Route Re Sync button has bug, routes are reflecting even when not maintained in Route Master",
+    title: "Notification email not sent",
+    client: "Client 1",
+    mod: "TMS",
+    sev: "S2",
+    status: "Open",
+    spoc: "Ravi M.",
+    date: "2026-01-08",
+    category: "Bug (Code defect)",
+    environment: "Prod"
+  },
+  { 
+    id: "TKT-10",
+    description: "While downloading the Mapping Master, the Quantity UOM column shows 'N/A'.",
+    title: "UI alignment broken on mobile",
+    client: "Client 3",
+    mod: "DPAI",
+    sev: "S3",
+    status: "Open",
+    spoc: "Priya S.",
+    date: "2026-01-14",
+    category: "Bug (Code defect)",
+    environment: "Prod"
+  },
+  { 
+    id: "TKT-11",
+    description: "While uploading the Personnel Master file in EDM, a 'Network Error' is displayed and upload fails",
+    title: "API timeout on bulk operations",
+    client: "Client 1",
+    mod: "DS",
+    sev: "S1",
+    status: "Escalated",
+    spoc: "Ravi M.",
+    date: "2026-02-01",
+    category: "Other",
+    environment: "Prod"
+  },
+  { 
+    id: "TKT-12",
+    description: "File downloaded from EDM is having duplicate records though no duplicates were uploaded",
+    title: "Duplicate records after import",
+    client: "Client 2",
+    mod: "DS",
+    sev: "S2",
+    status: "Open",
+    spoc: "Nikita K.",
+    date: "2026-02-10",
+    category: "Bug (Code defect)",
+    environment: "PROD"
+  },
+  { 
+    id: "TKT-13",
+    description: "The user uploaded the budget template, status shows error but no error file is available",
+    title: "PDF generation hangs",
+    client: "Client 3",
+    mod: "TMS",
+    sev: "S3",
+    status: "In Progress",
+    spoc: "Priya S.",
+    date: "2026-03-05",
+    category: "Bug (Code defect)",
+    environment: "UAT"
+  },
+  { 
+    id: "TKT-14",
+    description: "[UAT] Transaction Logs not showing data for PIM entity filter",
+    title: "Role permissions not saving",
+    client: "Client 1",
+    mod: "DPAI",
+    sev: "S2",
+    status: "Open",
+    spoc: "Ravi M.",
+    date: "2026-03-12",
+    category: "Bug (Code defect)",
+    environment: "UAT"
+  },
+  { 
+    id: "TKT-15",
+    description: "SNOP status stuck at 'Forecast in Progress' and DFUs not loading",
+    title: "Timezone mismatch in schedules",
+    client: "Client 2",
+    mod: "TMS",
+    sev: "S3",
+    status: "Closed",
+    spoc: "Nikita K.",
+    date: "2026-03-20",
+    category: "Performance issue",
+    environment: "Prod"
+  },
 ];
-
 // ── SVG icons ──────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 15 }) => (
   <svg
@@ -488,13 +667,7 @@ const DashboardSection = () => {
     { label: "Team utilisation", val: "78%", valStyle: {}, sub: "4 agents active" },
   ];
 
-  const slaBreachItems = [
-    { id: "TKT-004", title: "Calendar Save", client: "Client 2", sev: "S1", pct: 87 },
-    { id: "TKT-012", title: "API timeout", client: "Client 1", sev: "S1", pct: 79 },
-    { id: "TKT-011", title: "Data sync", client: "Client 3", sev: "S2", pct: 61 },
-    { id: "TKT-007", title: "Login loop", client: "Client 2", sev: "S2", pct: 44 },
-    { id: "TKT-015", title: "Report fail", client: "Client 1", sev: "S3", pct: 18 },
-  ];
+
 
   const activity = [
     { color: C.red, text: "TKT-004 escalated to S1 by Nikita K.", time: "12 min ago · Client 2" },
@@ -510,9 +683,9 @@ const DashboardSection = () => {
         <Btn sm ghost>Export report</Btn>
         <Btn sm variant="primary">+ New ticket</Btn>
       </SHeader>
-      <AlertBanner type="danger">
+      {/* <AlertBanner type="danger">
         4 tickets are at critical SLA breach risk — immediate action required.
-      </AlertBanner>
+      </AlertBanner> */}
 
       {/* Metric cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 18 }}>
@@ -526,20 +699,57 @@ const DashboardSection = () => {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
-        {/* SLA breach risk */}
+        {/* Client vs Number of Tickets bar chart */}
         <Card>
-          <CardTitle>SLA breach risk — all clients</CardTitle>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {slaBreachItems.map((item) => (
-              <div key={item.id}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                  <span>{item.id} · {item.title} · <ClientBadge client={item.client} /></span>
-                  <SevBadge sev={item.sev} />
+          <CardTitle>Tickets by client</CardTitle>
+          {(() => {
+            const counts = {};
+            ADMIN_TICKETS.forEach(t => { counts[t.client] = (counts[t.client] || 0) + 1; });
+            const data = Object.entries(counts).map(([client, count]) => ({ client, count }));
+            const max = Math.max(...data.map(d => d.count));
+            const clientColors = { "Client 1": "#D4537E", "Client 2": "#378ADD", "Client 3": "#1D9E75" };
+            return (
+              <div>
+                {/* Bars */}
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 16, height: 130, paddingBottom: 0 }}>
+                  {data.map(d => (
+                    <div key={d.client} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, gap: 4, height: "100%" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{d.count}</div>
+                      <div style={{ width: "100%", flex: 1, display: "flex", alignItems: "flex-end" }}>
+                        <div style={{
+                          width: "100%",
+                          height: `${(d.count / max) * 100}%`,
+                          borderRadius: "4px 4px 0 0",
+                          background: clientColors[d.client] || C.blue,
+                          minHeight: 8,
+                          transition: "height 0.3s",
+                        }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <SlaTrack pct={item.pct} severity={item.sev} />
+                {/* X-axis line */}
+                <div style={{ borderTop: `1.5px solid ${C.border}`, marginBottom: 6 }} />
+                {/* X-axis labels */}
+                <div style={{ display: "flex", gap: 16 }}>
+                  {data.map(d => (
+                    <div key={d.client} style={{ flex: 1, textAlign: "center", fontSize: 11, color: C.textTertiary, fontWeight: 500 }}>
+                      {d.client}
+                    </div>
+                  ))}
+                </div>
+                {/* Legend dots */}
+                <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
+                  {data.map(d => (
+                    <div key={d.client} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.textSecondary }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: clientColors[d.client] || C.blue, flexShrink: 0 }} />
+                      {d.client} — {d.count} tickets
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })()}
         </Card>
 
         {/* Recent activity */}
@@ -683,8 +893,8 @@ const AllTicketsSection = () => {
                   <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
                     <div style={{ display: "flex", gap: 5 }}>
                       <Btn sm ghost onClick={() => setSelectedTicket(t)}>View</Btn>
-                      <Btn sm variant="warn">Escalate</Btn>
-                      <Btn sm variant="success">Close</Btn>
+                      {/* <Btn sm variant="warn">Escalate</Btn>
+                      <Btn sm variant="success">Close</Btn> */}
                     </div>
                   </td>
                 </tr>
@@ -700,10 +910,10 @@ const AllTicketsSection = () => {
 // ── ESCALATIONS SECTION ────────────────────────────────────────────────────
 const EscalationsSection = () => {
   const escalations = [
-    { id: "TKT-004", title: "Calendar Save Fails", sub: "TKT-004 · DPAI", client: "Client 2", sev: "S1", by: "Nikita K.", reason: "SLA breach imminent", time: "1h 42m", timeSx: { color: C.danger } },
-    { id: "TKT-012", title: "API timeout on bulk ops", sub: "TKT-012 · DS", client: "Client 1", sev: "S1", by: "Ravi M.", reason: "Customer impact on prod", time: "3h 10m", timeSx: { color: C.danger } },
-    { id: "TKT-021", title: "Data sync drops rows", sub: "TKT-021 · DS", client: "Client 3", sev: "S2", by: "Priya S.", reason: "Data integrity risk", time: "5h 55m", timeSx: { color: C.warn } },
-    { id: "TKT-026", title: "Workflow freeze on approve", sub: "TKT-026 · TMS", client: "Client 2", sev: "S2", by: null, reason: "Blocking client workflow", time: "7h 20m", timeSx: { color: C.warn } },
+    { id: "TKT-04",description:"", title: "Calendar Save Fails", sub: "TKT-004 · DPAI", client: "Client 2", sev: "S1", by: "Nikita K.", reason: "SLA breach imminent", time: "1h 42m", timeSx: { color: C.danger } },
+    { id: "TKT-12",description:"", title: "API timeout on bulk ops", sub: "TKT-012 · DS", client: "Client 1", sev: "S1", by: "Ravi M.", reason: "Customer impact on prod", time: "3h 10m", timeSx: { color: C.danger } },
+    { id: "TKT-21",description:"", title: "Data sync drops rows", sub: "TKT-021 · DS", client: "Client 3", sev: "S2", by: "Priya S.", reason: "Data integrity risk", time: "5h 55m", timeSx: { color: C.warn } },
+    { id: "TKT-26",description:"", title: "Workflow freeze on approve", sub: "TKT-026 · TMS", client: "Client 2", sev: "S2", by: null, reason: "Blocking client workflow", time: "7h 20m", timeSx: { color: C.warn } },
   ];
 
   const selectSx = { fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, background: C.bg, color: C.text };

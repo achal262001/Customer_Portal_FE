@@ -77,7 +77,7 @@ const TD = ({ children, sx = {} }) => (
 const STATUS_CYCLE = ["Open","In Progress","Open","Closed","Open","Open","In Progress","Closed","Open","In Progress","Open","Closed","In Progress","Open","Closed","Open","Open"];
 
 const tickets = TicketsData.map((t, i) => ({
-  id:     `TKT-${String(t.id).padStart(3, "0")}`,
+  id:     t.id,
   date:   t.Date,
   title:  t.Title,
   module: t.Module,
@@ -418,7 +418,7 @@ const AllTicketsPanel = () => {
         <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
           <Box component="thead">
             <Box component="tr">
-              {["#","Title","Date","Module","Env","Severity","Category","Status"].map(h => <TH key={h}>{h}</TH>)}
+              {["Id","Title","Date","Module","Env","Severity","Category","Status"].map(h => <TH key={h}>{h}</TH>)}
             </Box>
           </Box>
           <Box component="tbody">
@@ -461,7 +461,7 @@ const MyTicketsPanel = () => {
         <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
           <Box component="thead">
             <Box component="tr">
-              {["#","Title","Module","Severity","Status","Last update"].map(h => <TH key={h}>{h}</TH>)}
+              {["Ids","Title","Module","Severity","Status","Last update"].map(h => <TH key={h}>{h}</TH>)}
             </Box>
           </Box>
           <Box component="tbody">
@@ -488,9 +488,10 @@ const MyTicketsPanel = () => {
 // PANEL 4 — RAISE AN ISSUE
 // ═════════════════════════════════════════════════════════════════════════════
 const RaiseIssuePanel = () => {
-  const [issueText,  setIssueText]  = useState("");
-  const [showAI,     setShowAI]     = useState(false);
-  const [submitted,  setSubmitted]  = useState(false);
+  // ── AI side ──
+  const [issueText, setIssueText] = useState("");
+  const [showAI,    setShowAI]    = useState(false);
+  const [aiSubmitted, setAiSubmitted] = useState(false);
   const timerRef = useRef(null);
 
   const handleChange = (e) => {
@@ -503,18 +504,29 @@ const RaiseIssuePanel = () => {
       setShowAI(false);
     }
   };
-
-  const handleSubmit = () => {
-    setIssueText("");
-    setShowAI(false);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+  const handleAiSubmit = () => {
+    setIssueText(""); setShowAI(false);
+    setAiSubmitted(true);
+    setTimeout(() => setAiSubmitted(false), 3000);
   };
+  const handleClear = () => { clearTimeout(timerRef.current); setIssueText(""); setShowAI(false); };
 
-  const handleClear = () => {
-    clearTimeout(timerRef.current);
-    setIssueText("");
-    setShowAI(false);
+  // ── Manual side ──
+  const EMPTY_FORM = { title: "", description: "", module: "", environment: "", category: "", severity: "", client: "" };
+  const [form, setForm]           = useState(EMPTY_FORM);
+  const [manSubmitted, setManSubmitted] = useState(false);
+  const [errors, setErrors]       = useState({});
+
+  const setField = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
+
+  const handleManSubmit = () => {
+    const required = ["title", "description", "module", "environment", "category", "severity"];
+    const newErr = {};
+    required.forEach(k => { if (!form[k]) newErr[k] = "Required"; });
+    if (Object.keys(newErr).length) { setErrors(newErr); return; }
+    setForm(EMPTY_FORM); setErrors({});
+    setManSubmitted(true);
+    setTimeout(() => setManSubmitted(false), 3000);
   };
 
   const aiFields = [
@@ -527,70 +539,184 @@ const RaiseIssuePanel = () => {
     { title: "Calendar Save Fails with 400 Error",        meta: "TKT-001 · DPAI · Closed · Resolved in 2d" },
     { title: "Environment config missing after UAT reset", meta: "TKT-008 · DPAI · Closed · Resolved in 1d" },
   ];
+
+  const inputSx = (err) => ({
+    width: "100%", p: "8px 10px", border: `0.5px solid ${err ? "#A32D2D" : "#D1D5DB"}`,
+    borderRadius: "6px", fontSize: 13, fontFamily: "inherit", outline: "none",
+    backgroundColor: "#fff", color: "#111827", boxSizing: "border-box",
+    "&:focus": { borderColor: "#185FA5" },
+  });
+  const selectSx = (err) => ({ ...inputSx(err), appearance: "auto", cursor: "pointer", height: 36 });
+  const labelSx = { fontSize: 12, fontWeight: 500, color: "#374151", mb: 0.4, display: "block" };
+  const errSx   = { fontSize: 11, color: "#A32D2D", mt: 0.3 };
   const btnBase = { px: "16px", py: "8px", borderRadius: "6px", fontSize: 13, cursor: "pointer", fontWeight: 500, fontFamily: "inherit" };
 
   return (
-    <Box sx={{ maxWidth: 640 }}>
-      {submitted && (
-        <Box sx={{ backgroundColor: "#EAF3DE", border: "0.5px solid #3B6D11", borderRadius: "6px", p: "10px 14px", fontSize: 13, color: "#3B6D11", mb: 2 }}>
-          Ticket submitted successfully!
+    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, height: "100%", overflow: "hidden" }}>
+
+      {/* ── LEFT: AI-assisted ── */}
+      <Box sx={{ borderRight: "1px solid #E5E7EB", pr: 3, overflowY: "auto" }}>
+        <Box sx={{ mb: 2 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#111827", mb: 0.3 }}>AI-assisted ticket</Typography>
+          <Typography sx={{ fontSize: 12, color: "#9CA3AF" }}>Describe freely — AI analyses and pre-fills fields.</Typography>
         </Box>
-      )}
 
-      <Box sx={{ mb: 2 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#6B7280", display: "block", mb: 0.8 }}>Describe your issue</Typography>
-        <Typography sx={{ fontSize: 12, color: "#9CA3AF", mb: 1 }}>Type freely — AI will analyse and prefill the fields below.</Typography>
-        <Box
-          component="textarea"
-          value={issueText}
-          onChange={handleChange}
-          placeholder="e.g. When I try to save a calendar entry in DPAI it returns a 400 error…"
-          sx={{
-            width: "100%", p: "10px", border: "0.5px solid #D1D5DB", borderRadius: "6px",
-            fontSize: 14, fontFamily: "inherit", resize: "vertical", backgroundColor: "#fff",
-            color: "#111827", minHeight: 90, outline: "none", display: "block",
-            "&:focus": { borderColor: "#185FA5" },
-          }}
-        />
-      </Box>
+        {aiSubmitted && (
+          <Box sx={{ backgroundColor: "#EAF3DE", border: "0.5px solid #3B6D11", borderRadius: "6px", p: "10px 14px", fontSize: 13, color: "#3B6D11", mb: 2 }}>
+            Ticket submitted successfully!
+          </Box>
+        )}
 
-      {showAI && (
-        <Box>
-          {/* AI suggestion */}
-          <Box sx={{ backgroundColor: "#EBF4FF", border: "0.5px solid #BFDBFE", borderRadius: "6px", p: "12px 14px", mb: 2 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#185FA5", mb: 0.8 }}>✦ AI pre-fill suggestion</Typography>
-            <Typography sx={{ fontSize: 13, color: "#6B7280" }}>Based on your description, we identified the following. Please confirm or edit before submitting.</Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.2, mt: 1.2 }}>
-              {aiFields.map(f => (
-                <Box key={f.name} sx={{ backgroundColor: "#fff", borderRadius: "6px", p: "8px 10px", border: "0.5px solid #E5E7EB" }}>
-                  <Typography sx={{ fontSize: 11, color: "#6B7280", mb: 0.3 }}>{f.name}</Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{f.val}</Typography>
+        <Box sx={{ mb: 2 }}>
+          <Typography component="label" sx={{ ...labelSx }}>Describe your issue</Typography>
+          <Box
+            component="textarea"
+            value={issueText}
+            onChange={handleChange}
+            placeholder="e.g. When I try to save a calendar entry in DPAI it returns a 400 error…"
+            sx={{ ...inputSx(false), resize: "vertical", minHeight: 100, display: "block" }}
+          />
+        </Box>
+
+        {showAI && (
+          <Box>
+            <Box sx={{ backgroundColor: "#EBF4FF", border: "0.5px solid #BFDBFE", borderRadius: "6px", p: "12px 14px", mb: 2 }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#185FA5", mb: 0.8 }}>✦ AI pre-fill suggestion</Typography>
+              <Typography sx={{ fontSize: 13, color: "#6B7280", mb: 1.2 }}>Based on your description, we identified the following:</Typography>
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                {aiFields.map(f => (
+                  <Box key={f.name} sx={{ backgroundColor: "#fff", borderRadius: "6px", p: "8px 10px", border: "0.5px solid #E5E7EB" }}>
+                    <Typography sx={{ fontSize: 11, color: "#6B7280", mb: 0.3 }}>{f.name}</Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{f.val}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Typography sx={{ fontSize: 12, color: "#6B7280", mb: 1 }}>Similar tickets — may already be resolved</Typography>
+              {similar.map(s => (
+                <Box key={s.title} sx={{ p: "8px 10px", border: "0.5px solid #E5E7EB", borderRadius: "6px", mb: 0.8, cursor: "pointer", "&:hover": { backgroundColor: "#F9FAFB" } }}>
+                  <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{s.title}</Typography>
+                  <Typography sx={{ fontSize: 11, color: "#9CA3AF", mt: 0.3 }}>{s.meta}</Typography>
                 </Box>
               ))}
             </Box>
-          </Box>
 
-          {/* Similar tickets */}
-          <Box sx={{ mb: 2 }}>
-            <Typography sx={{ fontSize: 12, color: "#6B7280", mb: 1 }}>Similar tickets — may already be resolved</Typography>
-            {similar.map(s => (
-              <Box key={s.title} sx={{ p: "8px 10px", border: "0.5px solid #E5E7EB", borderRadius: "6px", mb: 0.8, cursor: "pointer", "&:hover": { backgroundColor: "#F9FAFB" } }}>
-                <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{s.title}</Typography>
-                <Typography sx={{ fontSize: 11, color: "#9CA3AF", mt: 0.3 }}>{s.meta}</Typography>
+            <Box sx={{ display: "flex", gap: 1 }}>
+              <Box component="button" onClick={handleAiSubmit} sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", "&:hover": { opacity: 0.9 } }}>
+                Confirm &amp; submit
               </Box>
-            ))}
+              <Box component="button" onClick={handleClear} sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
+                Clear
+              </Box>
+            </Box>
+          </Box>
+        )}
+      </Box>
+
+      {/* ── RIGHT: Manual form ── */}
+      <Box sx={{ pl: 3, overflowY: "auto" }}>
+        <Box sx={{ mb: 2 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#111827", mb: 0.3 }}>Manual ticket</Typography>
+          <Typography sx={{ fontSize: 12, color: "#9CA3AF" }}>Fill in the details yourself and submit.</Typography>
+        </Box>
+
+        {manSubmitted && (
+          <Box sx={{ backgroundColor: "#EAF3DE", border: "0.5px solid #3B6D11", borderRadius: "6px", p: "10px 14px", fontSize: 13, color: "#3B6D11", mb: 2 }}>
+            Ticket submitted successfully!
+          </Box>
+        )}
+
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.6 }}>
+          {/* Title */}
+          <Box>
+            <Typography component="label" sx={labelSx}>Title <span style={{ color: "#A32D2D" }}>*</span></Typography>
+            <Box component="input" value={form.title} onChange={e => setField("title", e.target.value)}
+              placeholder="Short summary of the issue"
+              sx={inputSx(errors.title)} />
+            {errors.title && <Typography sx={errSx}>{errors.title}</Typography>}
           </Box>
 
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Box component="button" onClick={handleSubmit} sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", "&:hover": { opacity: 0.9 } }}>
-              Confirm &amp; submit ticket
+          {/* Description */}
+          <Box>
+            <Typography component="label" sx={labelSx}>Description <span style={{ color: "#A32D2D" }}>*</span></Typography>
+            <Box component="textarea" value={form.description} onChange={e => setField("description", e.target.value)}
+              placeholder="Describe the issue in detail…"
+              sx={{ ...inputSx(errors.description), resize: "vertical", minHeight: 80, display: "block" }} />
+            {errors.description && <Typography sx={errSx}>{errors.description}</Typography>}
+          </Box>
+
+          {/* Module + Environment */}
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+            <Box>
+              <Typography component="label" sx={labelSx}>Module <span style={{ color: "#A32D2D" }}>*</span></Typography>
+              <Box component="select" value={form.module} onChange={e => setField("module", e.target.value)} sx={selectSx(errors.module)}>
+                <option value="">Select module</option>
+                <option>DPAI</option><option>TMS</option><option>DS</option><option>EDM</option>
+              </Box>
+              {errors.module && <Typography sx={errSx}>{errors.module}</Typography>}
             </Box>
-            <Box component="button" onClick={handleClear} sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
-              Clear
+            <Box>
+              <Typography component="label" sx={labelSx}>Environment <span style={{ color: "#A32D2D" }}>*</span></Typography>
+              <Box component="select" value={form.environment} onChange={e => setField("environment", e.target.value)} sx={selectSx(errors.environment)}>
+                <option value="">Select environment</option>
+                <option>Production</option><option>UAT</option><option>Staging</option><option>Dev</option>
+              </Box>
+              {errors.environment && <Typography sx={errSx}>{errors.environment}</Typography>}
+            </Box>
+          </Box>
+
+          {/* Category + Severity */}
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+            <Box>
+              <Typography component="label" sx={labelSx}>Category <span style={{ color: "#A32D2D" }}>*</span></Typography>
+              <Box component="select" value={form.category} onChange={e => setField("category", e.target.value)} sx={selectSx(errors.category)}>
+                <option value="">Select category</option>
+                <option>Environment issue</option><option>Bug</option><option>Change Request</option><option>Configuration</option><option>General</option>
+              </Box>
+              {errors.category && <Typography sx={errSx}>{errors.category}</Typography>}
+            </Box>
+            <Box>
+              <Typography component="label" sx={labelSx}>Severity <span style={{ color: "#A32D2D" }}>*</span></Typography>
+              <Box component="select" value={form.severity} onChange={e => setField("severity", e.target.value)} sx={selectSx(errors.severity)}>
+                <option value="">Select severity</option>
+                <option>Severity 1 (High)</option><option>Severity 2 (Moderate)</option><option>Severity 3 (Minor)</option>
+              </Box>
+              {errors.severity && <Typography sx={errSx}>{errors.severity}</Typography>}
+            </Box>
+          </Box>
+
+          {/* Client (optional) */}
+          <Box>
+            <Typography component="label" sx={labelSx}>Client</Typography>
+            <Box component="select" value={form.client} onChange={e => setField("client", e.target.value)} sx={selectSx(false)}>
+              <option value="">Select client (optional)</option>
+              <option>Client 1</option><option>Client 2</option><option>Client 3</option>
+            </Box>
+            <Box>
+              <Typography component="label" sx={labelSx}>Project <span style={{ color: "#A32D2D" }}>*</span></Typography>
+              <Box component="select" value={form.project} onChange={e => setField("project", e.target.value)} sx={selectSx(errors.project)}>
+                <option value="">Select project</option>
+                <option>DPAI – Phase 2 Rollout</option><option>TMS – Configuration Upgrade</option>
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Actions */}
+          <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
+            <Box component="button" onClick={handleManSubmit}
+              sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", "&:hover": { opacity: 0.9 } }}>
+              Submit ticket
+            </Box>
+            <Box component="button" onClick={() => { setForm(EMPTY_FORM); setErrors({}); }}
+              sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
+              Reset
             </Box>
           </Box>
         </Box>
-      )}
+      </Box>
+
     </Box>
   );
 };
