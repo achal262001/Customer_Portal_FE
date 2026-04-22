@@ -1,5 +1,14 @@
 import { Typography } from "@mui/material";
-import { useState } from "react";
+import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import { RaiseIssuePanel } from "../Home/HomeLayout";
+
+const NewTicketCtx = createContext(() => {});
+import {
+  getAllTickets, getDashboardStats, getRecentActivities,
+  getTicketsByClient, getAllClients, getAllUsers,
+  getAllProjects, getTicketsByModule, getTicketsByCategory, logout,
+} from "../../Supportive Files/api";
 
 // ── Color tokens matching admin_ticketing_portal.html ──────────────────────
 const C = {
@@ -218,6 +227,90 @@ const SlaTrack = ({ pct, severity }) => {
       />
     </div>
   );
+};
+
+// ── API utilities ──────────────────────────────────────────────────────────
+const useFetch = (apiFn, deps = []) => {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    apiFn()
+      .then(res  => { if (active) { setData(res);  setLoading(false); } })
+      .catch(()  => { if (active) { setLoading(false); } });
+    return () => { active = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return { data, loading };
+};
+
+const Spinner = () => (
+  <div style={{ textAlign: "center", padding: "30px 0", color: C.textTertiary, fontSize: 13 }}>Loading…</div>
+);
+
+const toArray = (res) => (Array.isArray(res) ? res : res?.data ?? res?.content ?? []);
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+const useApiErrors = () => {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    const handler = (e) => {
+      const id = Date.now() + Math.random();
+      setToasts(prev => [...prev, { id, message: e.detail }]);
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+    };
+    window.addEventListener("api-error", handler);
+    return () => window.removeEventListener("api-error", handler);
+  }, []);
+  return [toasts, setToasts];
+};
+
+const ToastContainer = () => {
+  const [toasts, setToasts] = useApiErrors();
+  if (toasts.length === 0) return null;
+  return (
+    <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
+      {toasts.map(t => (
+        <div key={t.id} style={{
+          display: "flex", alignItems: "flex-start", gap: 10,
+          background: "#1F2937", color: "#fff",
+          padding: "11px 14px", borderRadius: 8,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+          fontSize: 13, minWidth: 260, maxWidth: 380,
+          borderLeft: "3px solid #E24B4A",
+          pointerEvents: "all",
+        }}>
+          <span style={{ flex: 1, lineHeight: 1.5 }}>{t.message}</span>
+          <span
+            onClick={() => setToasts(p => p.filter(x => x.id !== t.id))}
+            style={{ cursor: "pointer", opacity: 0.5, fontSize: 15, lineHeight: 1, flexShrink: 0, marginTop: 1 }}
+            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+            onMouseLeave={e => e.currentTarget.style.opacity = 0.5}
+          >✕</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const normalizeAdminTicket = (t) => {
+  const sev = t.severity?.name || t.severity || "";
+  const sevLabel = (sev.includes("1") || sev.toLowerCase() === "s1" || sev.toLowerCase().includes("high")) ? "S1"
+    : (sev.includes("2") || sev.toLowerCase() === "s2" || sev.toLowerCase().includes("moderate")) ? "S2" : "S3";
+  return {
+    id:          String(t.id),
+    title:       t.title || "—",
+    client:      t.client?.name  || t.client  || "—",
+    mod:         t.module?.name  || t.module  || "—",
+    sev:         sevLabel,
+    status:      t.status?.name  || t.status  || "Open",
+    spoc:        t.deliverySpoc?.name || t.spoc?.name || t.spoc || "—",
+    date:        (t.createdAt || t.date || "").split("T")[0] || "—",
+    category:    t.category?.name || t.category || "—",
+    environment: t.environment?.name || t.environment || "—",
+    description: t.description || "",
+  };
 };
 
 // ── Admin ticket data ──────────────────────────────────────────────────────
@@ -664,30 +757,39 @@ const AlertBanner = ({ type, children }) => {
 
 // ── DASHBOARD SECTION ──────────────────────────────────────────────────────
 const DashboardSection = () => {
+  const openNewTicket = useContext(NewTicketCtx);
+  const { data: statsRaw,      loading: statsLoading }      = useFetch(() => getDashboardStats());
+  const { data: activitiesRaw, loading: activitiesLoading } = useFetch(() => getRecentActivities());
+  const { data: clientChartRaw }                            = useFetch(() => getTicketsByClient());
+
+  const stats          = statsRaw || {};
+  const activities     = toArray(activitiesRaw);
+  const clientChartApi = toArray(clientChartRaw);
+
   const metricCards = [
-    { label: "Total open tickets", val: 34, valStyle: { color: C.blue }, sub: "Across 3 clients" },
-    { label: "SLA breaches today", val: 4, valStyle: { color: C.danger }, sub: "↑ 2 vs yesterday" },
-    { label: "Avg resolution time", val: "3.4d", valStyle: {}, sub: "Target: 2.5d" },
-    { label: "Closed this month", val: 27, valStyle: { color: C.success }, sub: "+18% vs last month" },
-    { label: "Escalations open", val: 4, valStyle: { color: C.warn }, sub: "Unassigned: 1" },
-    { label: "Team utilisation", val: "78%", valStyle: {}, sub: "4 agents active" },
+    { label: "Total open tickets", val: stats.openTickets   ?? stats.totalOpen          ?? "—", valStyle: { color: C.blue },    sub: "Across 3 clients"     },
+    { label: "SLA breaches today", val: stats.slaBreachesToday ?? stats.slaBreaches     ?? "—", valStyle: { color: C.danger },  sub: "↑ 2 vs yesterday"    },
+    { label: "Avg resolution time",val: stats.avgResolution ?? stats.avgResolutionTime  ?? "—", valStyle: {},                   sub: "Target: 2.5d"        },
+    { label: "Closed this month",  val: stats.closedThisMonth                           ?? "—", valStyle: { color: C.success }, sub: "+18% vs last month"  },
+    { label: "Escalations open",   val: stats.escalationsOpen ?? stats.openEscalations  ?? "—", valStyle: { color: C.warn },   sub: "Unassigned: 1"       },
+    { label: "Team utilisation",   val: stats.teamUtilisation                           ?? "—", valStyle: {},                   sub: "4 agents active"     },
   ];
 
-
-
-  const activity = [
-    { color: C.red, text: "TKT-004 escalated to S1 by Nikita K.", time: "12 min ago · Client 2" },
-    { color: "#378ADD", text: "TKT-018 assigned to Ravi M.", time: "34 min ago · Client 1" },
-    { color: C.green, text: "TKT-009 closed — root cause: config error.", time: "1h ago · Client 3" },
-    { color: C.orange, text: "TKT-013 SLA warning triggered.", time: "2h ago · Client 2" },
-    { color: "#378ADD", text: "New ticket TKT-034 raised by Client 1.", time: "3h ago · Client 1" },
+  const FALLBACK_ACTIVITY = [
+    { color: C.red,      text: "TKT-004 escalated to S1 by Nikita K.", time: "12 min ago · Client 2" },
+    { color: "#378ADD",  text: "TKT-018 assigned to Ravi M.",           time: "34 min ago · Client 1" },
+    { color: C.green,    text: "TKT-009 closed — root cause: config error.", time: "1h ago · Client 3" },
+    { color: C.orange,   text: "TKT-013 SLA warning triggered.",        time: "2h ago · Client 2" },
+    { color: "#378ADD",  text: "New ticket TKT-034 raised by Client 1.",time: "3h ago · Client 1" },
   ];
+
+  const clientColors = { "Client 1": "#D4537E", "Client 2": "#378ADD", "Client 3": "#1D9E75" };
 
   return (
     <div>
       <SHeader title="Admin dashboard">
         <Btn sm ghost>Export report</Btn>
-        <Btn sm variant="primary">+ New ticket</Btn>
+        <Btn sm variant="primary" onClick={openNewTicket}>+ New ticket</Btn>
       </SHeader>
 
       {/* Metric cards */}
@@ -695,53 +797,39 @@ const DashboardSection = () => {
         {metricCards.map((mc) => (
           <div key={mc.label} style={{ background: C.bgSecondary, borderRadius: 6, padding: 14 }}>
             <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 5 }}>{mc.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 500, ...mc.valStyle }}>{mc.val}</div>
+            <div style={{ fontSize: 22, fontWeight: 500, ...mc.valStyle }}>{statsLoading ? "—" : mc.val}</div>
             <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 3 }}>{mc.sub}</div>
           </div>
         ))}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
-        {/* Client vs Number of Tickets bar chart */}
+        {/* Tickets by client bar chart */}
         <Card>
-          <CardTitle>Tickets Volumn Over Time</CardTitle>
+          <CardTitle>Tickets by client</CardTitle>
           {(() => {
-            const counts = {};
-            ADMIN_TICKETS.forEach(t => { counts[t.client] = (counts[t.client] || 0) + 1; });
-            const data = Object.entries(counts).map(([client, count]) => ({ client, count }));
-            const max = Math.max(...data.map(d => d.count));
-            const clientColors = { "Client 1": "#D4537E", "Client 2": "#378ADD", "Client 3": "#1D9E75" };
+            const data = clientChartApi.length > 0
+              ? clientChartApi.map(d => ({ client: d.name || d.client || d.clientName || d.label || "—", count: d.count ?? d.value ?? 0 }))
+              : [];
+            const max = Math.max(...data.map(d => d.count), 1);
             return (
               <div>
-                {/* Bars */}
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 16, height: 130, paddingBottom: 0 }}>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 16, height: 130 }}>
                   {data.map(d => (
                     <div key={d.client} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, gap: 4, height: "100%" }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{d.count}</div>
                       <div style={{ width: "100%", flex: 1, display: "flex", alignItems: "flex-end" }}>
-                        <div style={{
-                          width: "100%",
-                          height: `${(d.count / max) * 100}%`,
-                          borderRadius: "4px 4px 0 0",
-                          background: clientColors[d.client] || C.blue,
-                          minHeight: 8,
-                          transition: "height 0.3s",
-                        }} />
+                        <div style={{ width: "100%", height: `${(d.count / max) * 100}%`, borderRadius: "4px 4px 0 0", background: clientColors[d.client] || C.blue, minHeight: 8, transition: "height 0.3s" }} />
                       </div>
                     </div>
                   ))}
                 </div>
-                {/* X-axis line */}
                 <div style={{ borderTop: `1.5px solid ${C.border}`, marginBottom: 6 }} />
-                {/* X-axis labels */}
                 <div style={{ display: "flex", gap: 16 }}>
                   {data.map(d => (
-                    <div key={d.client} style={{ flex: 1, textAlign: "center", fontSize: 11, color: C.textTertiary, fontWeight: 500 }}>
-                      {d.client}
-                    </div>
+                    <div key={d.client} style={{ flex: 1, textAlign: "center", fontSize: 11, color: C.textTertiary, fontWeight: 500 }}>{d.client}</div>
                   ))}
                 </div>
-                {/* Legend dots */}
                 <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
                   {data.map(d => (
                     <div key={d.client} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.textSecondary }}>
@@ -750,6 +838,7 @@ const DashboardSection = () => {
                     </div>
                   ))}
                 </div>
+                {data.length === 0 && <div style={{ textAlign: "center", padding: "20px 0", fontSize: 12, color: C.textTertiary }}>No data</div>}
               </div>
             );
           })()}
@@ -758,15 +847,27 @@ const DashboardSection = () => {
         {/* Recent activity */}
         <Card>
           <CardTitle>Recent activity</CardTitle>
-          {activity.map((a, i) => (
-            <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < activity.length - 1 ? `0.5px solid ${C.border}` : "none" }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: a.color, flexShrink: 0, marginTop: 4 }} />
-              <div>
-                <div style={{ fontSize: 13, lineHeight: 1.4 }}>{a.text}</div>
-                <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{a.time}</div>
-              </div>
-            </div>
-          ))}
+          {activitiesLoading ? <Spinner /> : (
+            activities.length > 0
+              ? activities.slice(0, 5).map((a, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < Math.min(activities.length, 5) - 1 ? `0.5px solid ${C.border}` : "none" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#378ADD", flexShrink: 0, marginTop: 4 }} />
+                    <div>
+                      <div style={{ fontSize: 13, lineHeight: 1.4 }}>{a.description || a.text || a.message || "—"}</div>
+                      <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{a.time || a.timeAgo || ""}</div>
+                    </div>
+                  </div>
+                ))
+              : FALLBACK_ACTIVITY.map((a, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < FALLBACK_ACTIVITY.length - 1 ? `0.5px solid ${C.border}` : "none" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: a.color, flexShrink: 0, marginTop: 4 }} />
+                    <div>
+                      <div style={{ fontSize: 13, lineHeight: 1.4 }}>{a.text}</div>
+                      <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{a.time}</div>
+                    </div>
+                  </div>
+                ))
+          )}
         </Card>
       </div>
     </div>
@@ -775,15 +876,26 @@ const DashboardSection = () => {
 
 // ── ALL TICKETS SECTION ────────────────────────────────────────────────────
 const AllTicketsSection = () => {
-  const [tickets, setTickets] = useState(ADMIN_TICKETS);
-  const [search, setSearch] = useState("");
-  const [filterClient, setFilterClient] = useState("");
-  const [filterMod, setFilterMod] = useState("");
-  const [filterSev, setFilterSev] = useState("");
-  const [filterStat, setFilterStat] = useState("");
-  const [selected, setSelected] = useState(new Set());
-  const [bulkVisible, setBulkVisible] = useState(false);
+  const openNewTicket = useContext(NewTicketCtx);
+  const [tickets,        setTickets]        = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [search,         setSearch]         = useState("");
+  const [filterClient,   setFilterClient]   = useState("");
+  const [filterMod,      setFilterMod]      = useState("");
+  const [filterSev,      setFilterSev]      = useState("");
+  const [filterStat,     setFilterStat]     = useState("");
+  const [selected,       setSelected]       = useState(new Set());
+  const [bulkVisible,    setBulkVisible]    = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getAllTickets({ module: filterMod || undefined, severity: filterSev || undefined, status: filterStat || undefined })
+      .then(res => { if (active) { setTickets(toArray(res).map(normalizeAdminTicket)); setLoading(false); } })
+      .catch(()  => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [filterMod, filterSev, filterStat]);
 
   const filtered = tickets.filter((t) => {
     const s = search.toLowerCase();
@@ -822,7 +934,7 @@ const AllTicketsSection = () => {
       <TicketDetailDialog ticket={selectedTicket} onClose={() => setSelectedTicket(null)} />
       <SHeader title="All tickets">
         <Btn sm ghost onClick={() => setBulkVisible(!bulkVisible)}>Bulk actions</Btn>
-        <Btn sm variant="primary">+ New ticket</Btn>
+        <Btn sm variant="primary" onClick={openNewTicket}>+ New ticket</Btn>
       </SHeader>
 
       {/* Filters */}
@@ -866,6 +978,7 @@ const AllTicketsSection = () => {
       )}
 
       {/* Table */}
+      {loading ? <Spinner /> : (
       <Card style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -896,44 +1009,55 @@ const AllTicketsSection = () => {
                   <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
                     <div style={{ display: "flex", gap: 5 }}>
                       <Btn sm ghost onClick={() => setSelectedTicket(t)}>View</Btn>
-                      {/* <Btn sm variant="warn">Escalate</Btn>
-                      <Btn sm variant="success">Close</Btn> */}
                     </div>
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px 0", color: C.textTertiary, fontSize: 13 }}>No tickets match your filters</td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </Card>
+      )}
     </div>
   );
 };
 
 // ── ESCALATIONS SECTION ────────────────────────────────────────────────────
 const EscalationsSection = () => {
-  const escalations = [
-    { id: "TKT-04",description:"", title: "Calendar Save Fails", sub: "TKT-004 · DPAI", client: "Client 2", sev: "S1", by: "Nikita K.", reason: "SLA breach imminent", time: "1h 42m", timeSx: { color: C.danger } },
-    { id: "TKT-12",description:"", title: "API timeout on bulk ops", sub: "TKT-012 · DS", client: "Client 1", sev: "S1", by: "Ravi M.", reason: "Customer impact on prod", time: "3h 10m", timeSx: { color: C.danger } },
-    { id: "TKT-21",description:"", title: "Data sync drops rows", sub: "TKT-021 · DS", client: "Client 3", sev: "S2", by: "Priya S.", reason: "Data integrity risk", time: "5h 55m", timeSx: { color: C.warn } },
-    { id: "TKT-26",description:"", title: "Workflow freeze on approve", sub: "TKT-026 · TMS", client: "Client 2", sev: "S2", by: null, reason: "Blocking client workflow", time: "7h 20m", timeSx: { color: C.warn } },
-  ];
+  const [escalations, setEscalations] = useState([]);
+  const [loading,     setLoading]     = useState(true);
 
-  const selectSx = { fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, background: C.bg, color: C.text };
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getAllTickets({ status: "Escalated" })
+      .then(res => { if (active) { setEscalations(toArray(res).map(normalizeAdminTicket)); setLoading(false); } })
+      .catch(()  => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const unassigned = escalations.filter(e => !e.spoc || e.spoc === "—").length;
+  const selectSx   = { fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, background: C.bg, color: C.text };
 
   return (
     <div>
       <SHeader title="Escalations">
         <Btn sm variant="primary">Assign all</Btn>
       </SHeader>
-      <AlertBanner type="warn">
-        1 escalated ticket is unassigned. Assign immediately to meet SLA.
-      </AlertBanner>
+      {unassigned > 0 && (
+        <AlertBanner type="warn">
+          {unassigned} escalated ticket{unassigned > 1 ? "s are" : " is"} unassigned. Assign immediately to meet SLA.
+        </AlertBanner>
+      )}
+      {loading ? <Spinner /> : (
       <Card style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr>
-              {["Ticket", "Client", "Severity", "Escalated by", "Reason", "Time in escalation", "Actions"].map((h) => (
+              {["Ticket", "Client", "Severity", "SPOC", "Category", "Date", "Actions"].map((h) => (
                 <th key={h} style={{ textAlign: "center", padding: "8px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 11, fontWeight: 500, color: C.textSecondary }}>
                   {h}
                 </th>
@@ -948,15 +1072,15 @@ const EscalationsSection = () => {
               >
                 <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
                   <div style={{ fontWeight: 500, fontSize: 13 }}>{e.title}</div>
-                  <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 1 }}>{e.sub}</div>
+                  <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 1 }}>{e.id} · {e.mod}</div>
                 </td>
                 <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><ClientBadge client={e.client} /></td>
                 <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><SevBadge sev={e.sev} /></td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12, ...(!e.by ? { color: C.danger } : {}) }}>
-                  {e.by || "Unassigned"}
+                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12, ...((!e.spoc || e.spoc === "—") ? { color: C.danger } : {}) }}>
+                  {e.spoc && e.spoc !== "—" ? e.spoc : "Unassigned"}
                 </td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12 }}>{e.reason}</td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12, ...e.timeSx }}>{e.time}</td>
+                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12 }}>{e.category}</td>
+                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12, color: C.danger }}>{e.date}</td>
                 <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
                   <div style={{ display: "flex", gap: 5 }}>
                     <select style={selectSx}>
@@ -968,20 +1092,35 @@ const EscalationsSection = () => {
                 </td>
               </tr>
             ))}
+            {escalations.length === 0 && (
+              <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px 0", color: C.textTertiary, fontSize: 13 }}>No escalated tickets</td></tr>
+            )}
           </tbody>
         </table>
       </Card>
+      )}
     </div>
   );
 };
 
 // ── Client Tickets Popup ───────────────────────────────────────────────────
 const ClientTicketsPopup = ({ client, onClose }) => {
-  const [activeTicket, setActiveTicket] = useState(null);
+  const [activeTicket,  setActiveTicket]  = useState(null);
+  const [clientTickets, setClientTickets] = useState([]);
+  const [loading,       setLoading]       = useState(true);
+
+  useEffect(() => {
+    if (!client) return;
+    let active = true;
+    setActiveTicket(null);
+    setLoading(true);
+    getAllTickets({ client: client.name })
+      .then(res => { if (active) { setClientTickets(toArray(res).map(normalizeAdminTicket)); setLoading(false); } })
+      .catch(()  => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [client?.name]);
 
   if (!client) return null;
-
-  const clientTickets = ADMIN_TICKETS.filter((t) => t.client === client.name);
 
   const DetailRow = ({ label, children }) => (
     <div style={{ display: "flex", gap: 12, padding: "9px 0", borderBottom: `0.5px solid ${C.bgTertiary}`, alignItems: "flex-start" }}>
@@ -1021,7 +1160,7 @@ const ClientTicketsPopup = ({ client, onClose }) => {
 
           {/* ── Left 50%: Ticket grid ── */}
           <div style={{ width: "50%", borderRight: `1px solid ${C.border}`, overflowY: "auto", padding: "14px 0" }}>
-            {clientTickets.length === 0 ? (
+            {loading ? <Spinner /> : clientTickets.length === 0 ? (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: C.textTertiary, fontSize: 13 }}>
                 No tickets found for this client.
               </div>
@@ -1141,33 +1280,42 @@ const ClientTicketsPopup = ({ client, onClose }) => {
 // ── CLIENTS SECTION ────────────────────────────────────────────────────────
 const ClientsSection = () => {
   const [viewClient, setViewClient] = useState(null);
+  const { data: clientsRaw, loading } = useFetch(() => getAllClients());
 
-  const clients = [
-    {
-      code: "C1", name: "Client 1", since: "Since Jan 2024",
-      avSx: { background: "#FBEAF0", color: "#72243E" },
-      health: { label: "Healthy", bg: C.successBg, color: C.success },
-      spoc: "Ravi M.", mods: "DPAI, DS",
-      stats: [{ val: 11, label: "Open", color: C.blue }, { val: 2, label: "At risk", color: C.danger }, { val: 9, label: "Closed", color: C.success }],
-      border: "none",
-    },
-    {
-      code: "C2", name: "Client 2", since: "Since Mar 2024",
-      avSx: { background: C.blueBg, color: C.blueDark },
-      health: { label: "At risk", bg: C.dangerBg, color: C.danger },
-      spoc: "Nikita K.", mods: "DPAI, TMS",
-      stats: [{ val: 14, label: "Open", color: C.blue }, { val: 4, label: "At risk", color: C.danger }, { val: 12, label: "Closed", color: C.success }],
-      border: `2px solid #378ADD`,
-    },
-    {
-      code: "C3", name: "Client 3", since: "Since Jul 2024",
-      avSx: { background: C.successBg, color: "#27500A" },
-      health: { label: "Healthy", bg: C.successBg, color: C.success },
-      spoc: "Priya S.", mods: "TMS, DS",
-      stats: [{ val: 9, label: "Open", color: C.blue }, { val: 1, label: "At risk", color: C.warn }, { val: 6, label: "Closed", color: C.success }],
-      border: "none",
-    },
+  const STATIC_CLIENTS = [
+    { code: "C1", name: "Client 1", since: "Since Jan 2024", avSx: { background: "#FBEAF0", color: "#72243E" }, health: { label: "Healthy", bg: C.successBg, color: C.success }, spoc: "Ravi M.", mods: "DPAI, DS", stats: [{ val: 11, label: "Open", color: C.blue }, { val: 2, label: "At risk", color: C.danger }, { val: 9, label: "Closed", color: C.success }], border: "none" },
+    { code: "C2", name: "Client 2", since: "Since Mar 2024", avSx: { background: C.blueBg, color: C.blueDark }, health: { label: "At risk", bg: C.dangerBg, color: C.danger }, spoc: "Nikita K.", mods: "DPAI, TMS", stats: [{ val: 14, label: "Open", color: C.blue }, { val: 4, label: "At risk", color: C.danger }, { val: 12, label: "Closed", color: C.success }], border: `2px solid #378ADD` },
+    { code: "C3", name: "Client 3", since: "Since Jul 2024", avSx: { background: C.successBg, color: "#27500A" }, health: { label: "Healthy", bg: C.successBg, color: C.success }, spoc: "Priya S.", mods: "TMS, DS", stats: [{ val: 9, label: "Open", color: C.blue }, { val: 1, label: "At risk", color: C.warn }, { val: 6, label: "Closed", color: C.success }], border: "none" },
   ];
+
+  const CLIENT_META = [
+    { avSx: { background: "#FBEAF0", color: "#72243E" }, health: { label: "Healthy", bg: C.successBg, color: C.success }, border: "none" },
+    { avSx: { background: C.blueBg, color: C.blueDark }, health: { label: "At risk", bg: C.dangerBg, color: C.danger }, border: `2px solid #378ADD` },
+    { avSx: { background: C.successBg, color: "#27500A" }, health: { label: "Healthy", bg: C.successBg, color: C.success }, border: "none" },
+  ];
+
+  const rawClients = toArray(clientsRaw);
+  const clients = rawClients.length > 0
+    ? rawClients.map((c, i) => {
+        const meta = CLIENT_META[i % CLIENT_META.length];
+        const name = c.name || c.clientName || `Client ${i + 1}`;
+        return {
+          code:   name.slice(0, 2).toUpperCase(),
+          name,
+          since:  c.createdAt ? `Since ${c.createdAt.split("T")[0]}` : c.since || "—",
+          avSx:   meta.avSx,
+          health: meta.health,
+          spoc:   c.spoc?.name || c.deliverySpoc?.name || c.spoc || "—",
+          mods:   Array.isArray(c.modules) ? c.modules.join(", ") : c.modules || "—",
+          stats:  [
+            { val: c.openTickets   ?? "—", label: "Open",    color: C.blue    },
+            { val: c.atRisk        ?? "—", label: "At risk", color: C.danger  },
+            { val: c.closedTickets ?? "—", label: "Closed",  color: C.success },
+          ],
+          border: meta.border,
+        };
+      })
+    : STATIC_CLIENTS;
 
   return (
     <div>
@@ -1175,6 +1323,7 @@ const ClientsSection = () => {
       <SHeader title="Client management">
         <Btn sm variant="primary">+ Add client</Btn>
       </SHeader>
+      {loading && <Spinner />}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
         {clients.map((cl) => (
           <div key={cl.code} style={{ background: C.bg, border: cl.border || `0.5px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
@@ -1210,18 +1359,53 @@ const ClientsSection = () => {
 
 // ── TEAM SECTION ───────────────────────────────────────────────────────────
 const TeamSection = () => {
-  const members = [
+  const { data: usersRaw, loading } = useFetch(() => getAllUsers());
+
+  const STATIC_MEMBERS = [
     { initials: "NK", name: "Nikita K.", role: "LEAD", roleSx: { background: "#EEEDFE", color: "#3C3489" }, technicalRole: "Engineering", technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" }, stats: "12 active · Client 2 · Avg 3.1d", avSx: { background: C.blueBg, color: C.blueDark }, workload: 85, wColor: C.red, tickets: 12 },
     { initials: "RM", name: "Ravi M.", role: "LEAD", roleSx: { background: "#EEEDFE", color: "#3C3489" }, technicalRole: "DS", technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" }, stats: "8 active · Client 1 · Avg 2.8d", avSx: { background: "#FBEAF0", color: "#72243E" }, workload: 58, wColor: C.orange, tickets: 8 },
     { initials: "PS", name: "Priya S.", role: "LEAD", roleSx: { background: "#EEEDFE", color: "#3C3489" }, technicalRole: "Product", technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" }, stats: "6 active · Client 3 · Avg 3.5d", avSx: { background: C.successBg, color: "#27500A" }, workload: 43, wColor: "#378ADD", tickets: 6 },
     { initials: "AT", name: "Arjun T.", role: "SPOC", roleSx: { background: "#E1F5EE", color: "#085041" }, technicalRole: "Delivery", technicalRoleSx: { background: "#E1F5EE", color: "#b77e3c" }, stats: "4 active · All clients · Avg 4.1d", avSx: { background: "#E1F5EE", color: "#085041" }, workload: 72, wColor: C.orange, tickets: 4 },
   ];
 
+  const MEMBER_META = [
+    { avSx: { background: C.blueBg, color: C.blueDark }, wColor: C.red },
+    { avSx: { background: "#FBEAF0", color: "#72243E" }, wColor: C.orange },
+    { avSx: { background: C.successBg, color: "#27500A" }, wColor: "#378ADD" },
+    { avSx: { background: "#E1F5EE", color: "#085041" }, wColor: C.orange },
+  ];
+
+  const mkInitials = (name = "") => name.split(/\s+/).map(w => w[0] || "").join("").slice(0, 2).toUpperCase();
+
+  const rawUsers = toArray(usersRaw);
+  const members = rawUsers.length > 0
+    ? rawUsers.map((u, i) => {
+        const meta = MEMBER_META[i % MEMBER_META.length];
+        const name = u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username || `User ${i + 1}`;
+        const role = u.role?.name || u.role || "SPOC";
+        const tickets = u.activeTickets ?? u.openTickets ?? 0;
+        return {
+          initials:      mkInitials(name),
+          name,
+          role,
+          roleSx:        { background: "#EEEDFE", color: "#3C3489" },
+          technicalRole: u.department || u.team || "—",
+          technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" },
+          stats:         `${tickets} active · ${u.client?.name || u.client || "—"} · Avg ${u.avgResolution || "—"}`,
+          avSx:          meta.avSx,
+          workload:      u.workload ?? Math.min(tickets * 7, 100),
+          wColor:        meta.wColor,
+          tickets,
+        };
+      })
+    : STATIC_MEMBERS;
+
   return (
     <div>
       <SHeader title="Team management">
         <Btn sm variant="primary">+ Add member</Btn>
       </SHeader>
+      {loading && <Spinner />}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
         <div>
           {members.map((m) => (
@@ -1275,8 +1459,12 @@ const TeamSection = () => {
 
 // ── ANALYTICS SECTION ──────────────────────────────────────────────────────
 const AnalyticsSection = () => {
-  const BarChart = ({ data, colorFn }) => {
-    const max = Math.max(...data.map((d) => d.val));
+  const { data: clientChartRaw }   = useFetch(() => getTicketsByClient());
+  const { data: categoryChartRaw } = useFetch(() => getTicketsByCategory());
+  const { data: moduleChartRaw }   = useFetch(() => getTicketsByModule());
+
+  const SimpleBarChart = ({ data, colorFn }) => {
+    const max = Math.max(...data.map((d) => d.val), 1);
     return (
       <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110, marginBottom: 6 }}>
         {data.map((d) => (
@@ -1292,29 +1480,30 @@ const AnalyticsSection = () => {
     );
   };
 
-  const clientData = [
-    { label: "C1", val: 18, color: "#D4537E" },
-    { label: "C2", val: 22, color: "#378ADD" },
-    { label: "C3", val: 12, color: "#1D9E75" },
-  ];
+  const CLIENT_COLORS = ["#D4537E", "#378ADD", "#1D9E75", "#EF9F27", "#9C6FDE"];
+  const SEV_COLORS    = { S1: C.red, S2: C.orange, S3: C.green };
+
+  const rawClient   = toArray(clientChartRaw);
+  const rawCategory = toArray(categoryChartRaw);
+  const rawModule   = toArray(moduleChartRaw);
+
+  const clientData = rawClient.length > 0
+    ? rawClient.map((d, i) => ({ label: d.name || d.client || d.clientName || `C${i+1}`, val: d.count ?? d.value ?? 0, color: CLIENT_COLORS[i % CLIENT_COLORS.length] }))
+    : [{ label: "C1", val: 18, color: "#D4537E" }, { label: "C2", val: 22, color: "#378ADD" }, { label: "C3", val: 12, color: "#1D9E75" }];
 
   const monthData = [
     { label: "Oct", val: 6 }, { label: "Nov", val: 9 }, { label: "Dec", val: 14 },
     { label: "Jan", val: 11 }, { label: "Feb", val: 8 },
   ];
 
-  const sevData = [
-    { label: "S1", val: 12, color: C.red },
-    { label: "S2", val: 16, color: C.orange },
-    { label: "S3", val: 10, color: C.green },
-  ];
+  const sevData = rawModule.length > 0
+    ? rawModule.map(d => { const l = d.name || d.module || "—"; return { label: l, val: d.count ?? d.value ?? 0, color: SEV_COLORS[l] || "#378ADD" }; })
+    : [{ label: "S1", val: 12, color: C.red }, { label: "S2", val: 16, color: C.orange }, { label: "S3", val: 10, color: C.green }];
 
-  const categoryItems = [
-    { color: "#378ADD", label: "Env issue 42%" },
-    { color: C.orange, label: "Bug 25%" },
-    { color: C.green, label: "Change req 20%" },
-    { color: "#D4537E", label: "Other 13%" },
-  ];
+  const totalCat  = rawCategory.reduce((s, d) => s + (d.count ?? d.value ?? 0), 0) || 1;
+  const categoryItems = rawCategory.length > 0
+    ? rawCategory.map((d, i) => ({ color: CLIENT_COLORS[i % CLIENT_COLORS.length], label: `${d.name || d.category || "—"} ${Math.round(((d.count ?? d.value ?? 0) / totalCat) * 100)}%` }))
+    : [{ color: "#378ADD", label: "Env issue 42%" }, { color: C.orange, label: "Bug 25%" }, { color: C.green, label: "Change req 20%" }, { color: "#D4537E", label: "Other 13%" }];
 
   return (
     <div>
@@ -1324,7 +1513,7 @@ const AnalyticsSection = () => {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
         <Card>
           <CardTitle>Tickets by client</CardTitle>
-          <BarChart data={clientData} colorFn={(d) => d.color} />
+          <SimpleBarChart data={clientData} colorFn={(d) => d.color} />
         </Card>
 
         <Card>
@@ -1350,12 +1539,12 @@ const AnalyticsSection = () => {
 
         <Card>
           <CardTitle>Monthly volume</CardTitle>
-          <BarChart data={monthData} colorFn={() => "#378ADD"} />
+          <SimpleBarChart data={monthData} colorFn={() => "#378ADD"} />
         </Card>
 
         <Card>
-          <CardTitle>Severity distribution</CardTitle>
-          <BarChart data={sevData} colorFn={(d) => d.color} />
+          <CardTitle>Module breakdown</CardTitle>
+          <SimpleBarChart data={sevData} colorFn={(d) => d.color} />
         </Card>
       </div>
     </div>
@@ -1364,18 +1553,48 @@ const AnalyticsSection = () => {
 
 // ── PROJECTS SECTION ───────────────────────────────────────────────────────
 const ProjectsSection = () => {
-  const projects = [
+  const { data: projectsRaw, loading } = useFetch(() => getAllProjects());
+
+  const STATIC_PROJECTS = [
     { title: "DPAI — Phase 2 Rollout", client: "Client 2", spoc: "Nikita K.", due: "28 Feb 2026", statusLabel: "In progress · 68%", statusSx: { background: C.warnBg, color: C.warn }, pct: 68, pColor: "#378ADD", note: "AI summary: Integration testing blocked by 3 open env tickets. ETA slipping by ~4 days." },
     { title: "TMS — Configuration Upgrade", client: "Client 2", spoc: "Nikita K.", due: "15 May 2026", statusLabel: "Planned · 22%", statusSx: { background: C.blueBg, color: C.blue }, pct: 22, pColor: "#378ADD", note: null },
     { title: "DS — Data Migration v2", client: "Client 1", spoc: "Ravi M.", due: "30 Jun 2026", statusLabel: "Planned · 10%", statusSx: { background: C.blueBg, color: C.blue }, pct: 10, pColor: "#378ADD", note: null },
     { title: "TMS — Onboarding", client: "Client 3", spoc: "Priya S.", due: "30 Sep 2026", statusLabel: "Complete · 100%", statusSx: { background: C.successBg, color: C.success }, pct: 100, pColor: C.green, note: null },
   ];
 
+  const statusSxMap = (s = "") => {
+    const sl = s.toLowerCase();
+    if (sl.includes("progress") || sl.includes("active")) return { bg: C.warnBg, color: C.warn };
+    if (sl.includes("complete") || sl.includes("done"))   return { bg: C.successBg, color: C.success };
+    return { bg: C.blueBg, color: C.blue };
+  };
+
+  const rawProjects = toArray(projectsRaw);
+  const projects = rawProjects.length > 0
+    ? rawProjects.map(p => {
+        const status = p.status?.name || p.status || "Planned";
+        const pct    = p.progress ?? p.completionPct ?? p.percentage ?? 0;
+        const ssx    = statusSxMap(status);
+        return {
+          title:       p.name || p.title || "—",
+          client:      p.client?.name || p.client || "—",
+          spoc:        p.spoc?.name || p.deliverySpoc?.name || p.spoc || "—",
+          due:         (p.dueDate || p.due || "").split("T")[0] || "—",
+          statusLabel: `${status} · ${pct}%`,
+          statusSx:    { background: ssx.bg, color: ssx.color },
+          pct,
+          pColor:      "#378ADD",
+          note:        p.aiSummary || p.summary || null,
+        };
+      })
+    : STATIC_PROJECTS;
+
   return (
     <div>
       <SHeader title="All projects">
         <Btn sm variant="primary">+ New project</Btn>
       </SHeader>
+      {loading && <Spinner />}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {projects.map((p) => (
           <Card key={p.title} style={{ padding: 14 }}>
@@ -1566,9 +1785,46 @@ const SettingsSection = () => {
   );
 };
 
+// ── NEW TICKET MODAL ───────────────────────────────────────────────────────
+const NewTicketModal = ({ onClose }) => (
+  <div
+    onClick={onClose}
+    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}
+  >
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{ width: "82vw", maxWidth: "82vw", height: "82vh", maxHeight: "82vh", background: C.bg, borderRadius: 12, boxShadow: "0 16px 48px rgba(0,0,0,0.22)", display: "flex", flexDirection: "column", overflow: "hidden" }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>Raise a Ticket</div>
+          <div style={{ fontSize: 12, color: C.textTertiary, marginTop: 2 }}>Use AI-assisted or fill the form manually</div>
+        </div>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: C.textSecondary, lineHeight: 1, padding: 4 }}>✕</button>
+      </div>
+      {/* Body — RaiseIssuePanel needs its own padding/scroll context */}
+      <div style={{ flex: 1, overflow: "hidden", padding: "18px 22px" }}>
+        <RaiseIssuePanel />
+      </div>
+    </div>
+  </div>
+);
+
 // ── MAIN ADMIN LAYOUT ──────────────────────────────────────────────────────
 const AdminLayout = () => {
   const [activeSection, setActiveSection] = useState("dashboard");
+  const [newTicketOpen, setNewTicketOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogout = useCallback(async () => {
+    try { await logout(); } catch (_) {}
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  }, [navigate]);
+
+  const openNewTicket = useCallback(() => setNewTicketOpen(true), []);
 
   const sections = {
     dashboard: <DashboardSection />,
@@ -1585,6 +1841,8 @@ const AdminLayout = () => {
 
   return (
     <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", color: C.text, display: "flex", flexDirection: "column", height: "100vh", fontSize: 14 }}>
+      <ToastContainer />
+      {newTicketOpen && <NewTicketModal onClose={() => setNewTicketOpen(false)} />}
       {/* ── Top bar ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 18px", borderBottom: `0.5px solid ${C.border}`, background: C.bg, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -1605,6 +1863,31 @@ const AdminLayout = () => {
           </div>
           <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#185FA5", color: "#fff", fontSize: 11, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>SA</div>
           <span style={{ fontSize: 13, color: C.textSecondary }}>Super Admin</span>
+          <button
+            onClick={handleLogout}
+            style={{
+              marginLeft: 4,
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "5px 10px",
+              borderRadius: 6,
+              border: `0.5px solid ${C.borderSecondary}`,
+              background: C.bg,
+              color: C.textSecondary,
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#FCEBEB"; e.currentTarget.style.color = "#A32D2D"; e.currentTarget.style.borderColor = "#FECACA"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.color = C.textSecondary; e.currentTarget.style.borderColor = C.borderSecondary; }}
+          >
+            <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2} style={{ flexShrink: 0 }}>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Logout
+          </button>
         </div>
       </div>
 
@@ -1655,7 +1938,9 @@ const AdminLayout = () => {
 
         {/* Main content */}
         <div style={{ flex: 1, padding: 18, background: C.bgTertiary, overflowY: "auto", minWidth: 0 }}>
-          {sections[activeSection]}
+          <NewTicketCtx.Provider value={openNewTicket}>
+            {sections[activeSection]}
+          </NewTicketCtx.Provider>
         </div>
       </div>
     </div>

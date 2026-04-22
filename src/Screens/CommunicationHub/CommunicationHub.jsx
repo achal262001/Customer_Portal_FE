@@ -4,50 +4,132 @@ import {
   Typography,
   Avatar,
   Chip,
-  Divider,
   TextField,
   IconButton,
-  InputAdornment,
+  CircularProgress,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
-import { conversations, statusColors } from "./constant";
+import { statusColors } from "./constant";
+import {
+  getCommunicationTickets,
+  getTicketMessages,
+  sendTicketMessage,
+} from "../../Supportive Files/api";
+
+const normalizeMessage = (msg) => ({
+  id: msg.messageId,
+  sender: msg.sender === "client" ? "user" : "portal",
+  name: msg.senderName,
+  text: msg.text,
+  time: new Date(msg.sentAt).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }),
+  date: msg.sentAt.split("T")[0],
+});
+
+const normalizeTicket = (t) => ({
+  ticketId: t.ticketId,
+  title: t.title,
+  status: t.status.toLowerCase().replace(/\s+/g, "_"),
+  clientName: t.clientName,
+  category: "Support",
+  lastMessage: t.lastMessage,
+  lastMessageAt: t.lastMessageAt,
+  unreadCount: t.unreadCount,
+  messages: [],
+});
 
 const CommunicationHub = () => {
-  const [selectedId, setSelectedId] = useState(conversations[0].ticketId);
-  const [allConversations, setAllConversations] = useState(conversations);
+  const [conversations, setConversations] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
   const [replyText, setReplyText] = useState("");
+  const [loadingTickets, setLoadingTickets] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef(null);
 
-  const selected = allConversations.find((c) => c.ticketId === selectedId);
+  // Fetch ticket list on mount
+  useEffect(() => {
+    getCommunicationTickets()
+      .then((data) => {
+        const normalized = data.map(normalizeTicket);
+        setConversations(normalized);
+        if (normalized.length > 0) setSelectedId(normalized[0].ticketId);
+      })
+      .catch(console.error)
+      .finally(() => setLoadingTickets(false));
+  }, []);
 
+  // Fetch messages when selected ticket changes
+  useEffect(() => {
+    if (selectedId == null) return;
+
+    const conv = conversations.find((c) => c.ticketId === selectedId);
+    if (conv?.messages.length > 0) return; // already loaded
+
+    setLoadingMessages(true);
+    getTicketMessages(selectedId)
+      .then((data) => {
+        const msgs = data.map(normalizeMessage);
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.ticketId === selectedId ? { ...c, messages: msgs } : c
+          )
+        );
+      })
+      .catch(console.error)
+      .finally(() => setLoadingMessages(false));
+  }, [selectedId]);
+
+  // Auto-scroll to latest message
+  const selected = conversations.find((c) => c.ticketId === selectedId);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selected?.messages]);
+  }, [selected?.messages?.length]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!replyText.trim()) return;
-    const now = new Date();
-    const time = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const newMessage = {
+
+    const payload = { sender: "agent", name: "Support Team", text: replyText.trim() };
+
+    // Optimistic update
+    const optimistic = {
       id: Date.now(),
       sender: "portal",
       name: "Support Team",
       text: replyText.trim(),
-      time,
-      date: now.toISOString().split("T")[0],
+      time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+      date: new Date().toISOString().split("T")[0],
     };
-    setAllConversations((prev) =>
+    setConversations((prev) =>
       prev.map((c) =>
         c.ticketId === selectedId
-          ? { ...c, messages: [...c.messages, newMessage] }
+          ? { ...c, messages: [...c.messages, optimistic] }
           : c
       )
     );
     setReplyText("");
+
+    try {
+      const saved = await sendTicketMessage(selectedId, payload);
+      const normalized = normalizeMessage(saved);
+      // Replace optimistic with server response
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.ticketId === selectedId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === optimistic.id ? normalized : m
+                ),
+              }
+            : c
+        )
+      );
+    } catch {
+      // Keep optimistic message on failure
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -57,16 +139,6 @@ const CommunicationHub = () => {
     }
   };
 
-  const getLastMessage = (conv) => {
-    const last = conv.messages[conv.messages.length - 1];
-    return last ? last.text : "";
-  };
-
-  const getLastTime = (conv) => {
-    const last = conv.messages[conv.messages.length - 1];
-    return last ? last.time : "";
-  };
-
   const getInitials = (name) =>
     name
       .split(" ")
@@ -74,14 +146,16 @@ const CommunicationHub = () => {
       .join("")
       .toUpperCase();
 
+  if (loadingTickets) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+        <CircularProgress sx={{ color: "#1976d2" }} />
+      </Box>
+    );
+  }
+
   return (
-    <Box
-      sx={{
-        height: "100%",
-        display: "flex",
-        overflow: "hidden",
-      }}
-    >
+    <Box sx={{ height: "100%", display: "flex", overflow: "hidden" }}>
       {/* ── Left Panel: Ticket List ── */}
       <Box
         sx={{
@@ -93,22 +167,20 @@ const CommunicationHub = () => {
           flexDirection: "column",
         }}
       >
-        {/* Panel Header */}
         <Box sx={{ px: 2.5, py: 2, borderBottom: "1px solid #e0e0e0" }}>
           <Typography variant="h6" fontWeight={700}>
             Communication Hub
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {allConversations.length} tickets
+            {conversations.length} tickets
           </Typography>
         </Box>
-        
 
-        {/* Ticket List */}
         <Box sx={{ overflowY: "auto", flex: 1 }}>
-          {allConversations.map((conv) => {
+          {conversations.map((conv) => {
             const isActive = conv.ticketId === selectedId;
             const statusStyle = statusColors[conv.status] || statusColors.closed;
+            const lastMsg = conv.messages[conv.messages.length - 1];
             return (
               <Box
                 key={conv.ticketId}
@@ -136,7 +208,7 @@ const CommunicationHub = () => {
                     flexShrink: 0,
                   }}
                 >
-                  {conv.ticketId.replace("TKT-", "#")}
+                  #{conv.ticketId}
                 </Avatar>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box
@@ -147,16 +219,11 @@ const CommunicationHub = () => {
                       mb: 0.3,
                     }}
                   >
-                    <Typography
-                      variant="body2"
-                      fontWeight={600}
-                      noWrap
-                      sx={{ maxWidth: 160 }}
-                    >
+                    <Typography variant="body2" fontWeight={600} noWrap sx={{ maxWidth: 160 }}>
                       {conv.title}
                     </Typography>
                     <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
-                      {getLastTime(conv)}
+                      {lastMsg?.time ?? ""}
                     </Typography>
                   </Box>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -166,7 +233,7 @@ const CommunicationHub = () => {
                       noWrap
                       sx={{ maxWidth: 170 }}
                     >
-                      {getLastMessage(conv)}
+                      {lastMsg?.text ?? conv.lastMessage}
                     </Typography>
                     <Chip
                       label={conv.status.replace("_", " ")}
@@ -204,7 +271,7 @@ const CommunicationHub = () => {
           }}
         >
           <Avatar sx={{ backgroundColor: "#1976d2", fontWeight: 700, fontSize: 13 }}>
-            {selected?.ticketId.replace("TKT-", "#")}
+            #{selected?.ticketId}
           </Avatar>
           <Box>
             <Typography variant="subtitle1" fontWeight={700} lineHeight={1.2}>
@@ -212,7 +279,7 @@ const CommunicationHub = () => {
             </Typography>
             <Box sx={{ display: "flex", gap: 1, mt: 0.3 }}>
               <Chip
-                label={selected?.category}
+                label={selected?.clientName ?? selected?.category}
                 size="small"
                 variant="outlined"
                 sx={{ fontSize: "0.65rem", height: 18 }}
@@ -243,131 +310,123 @@ const CommunicationHub = () => {
             display: "flex",
             flexDirection: "column",
             gap: 1,
-            backgroundImage:
-              "radial-gradient(circle, #d1d7db 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(circle, #d1d7db 1px, transparent 1px)",
             backgroundSize: "20px 20px",
             backgroundColor: "#efeae2",
           }}
         >
-          {selected?.messages.map((msg, index) => {
-            const isUser = msg.sender === "user";
-            const prevMsg = selected.messages[index - 1];
-            const showDate = !prevMsg || prevMsg.date !== msg.date;
+          {loadingMessages ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+              <CircularProgress size={28} sx={{ color: "#1976d2" }} />
+            </Box>
+          ) : (
+            selected?.messages.map((msg, index) => {
+              const isUser = msg.sender === "user";
+              const prevMsg = selected.messages[index - 1];
+              const showDate = !prevMsg || prevMsg.date !== msg.date;
 
-            return (
-              <Box key={msg.id}>
-                {/* Date Divider */}
-                {showDate && (
-                  <Box sx={{ display: "flex", justifyContent: "center", my: 1.5 }}>
-                    <Chip
-                      label={msg.date}
-                      size="small"
-                      sx={{
-                        backgroundColor: "rgba(255,255,255,0.75)",
-                        fontSize: "0.7rem",
-                        color: "#555",
-                      }}
-                    />
-                  </Box>
-                )}
-
-                {/* Message Bubble */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: isUser ? "flex-end" : "flex-start",
-                    alignItems: "flex-end",
-                    gap: 1,
-                  }}
-                >
-                  {/* Portal avatar on left */}
-                  {!isUser && (
-                    <Avatar
-                      sx={{
-                        width: 28,
-                        height: 28,
-                        fontSize: 11,
-                        backgroundColor: "#1976d2",
-                        flexShrink: 0,
-                        mb: 0.5,
-                      }}
-                    >
-                      {getInitials(msg.name)}
-                    </Avatar>
+              return (
+                <Box key={msg.id}>
+                  {showDate && (
+                    <Box sx={{ display: "flex", justifyContent: "center", my: 1.5 }}>
+                      <Chip
+                        label={msg.date}
+                        size="small"
+                        sx={{ backgroundColor: "rgba(255,255,255,0.75)", fontSize: "0.7rem", color: "#555" }}
+                      />
+                    </Box>
                   )}
 
                   <Box
                     sx={{
-                      maxWidth: "62%",
                       display: "flex",
-                      flexDirection: "column",
-                      alignItems: isUser ? "flex-end" : "flex-start",
+                      justifyContent: isUser ? "flex-end" : "flex-start",
+                      alignItems: "flex-end",
+                      gap: 1,
                     }}
                   >
-                    {/* Sender name */}
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: isUser ? "#1976d2" : "#5c3d11",
-                        fontWeight: 600,
-                        mb: 0.3,
-                        px: 0.5,
-                      }}
-                    >
-                      {msg.name}
-                    </Typography>
+                    {!isUser && (
+                      <Avatar
+                        sx={{
+                          width: 28,
+                          height: 28,
+                          fontSize: 11,
+                          backgroundColor: "#1976d2",
+                          flexShrink: 0,
+                          mb: 0.5,
+                        }}
+                      >
+                        {getInitials(msg.name)}
+                      </Avatar>
+                    )}
 
-                    {/* Bubble */}
                     <Box
                       sx={{
-                        backgroundColor: isUser ? "#d9fdd3" : "#fff",
-                        color: "#111",
-                        borderRadius: isUser
-                          ? "16px 4px 16px 16px"
-                          : "4px 16px 16px 16px",
-                        px: 2,
-                        py: 1,
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-                        position: "relative",
+                        maxWidth: "62%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: isUser ? "flex-end" : "flex-start",
                       }}
                     >
-                      <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-                        {msg.text}
-                      </Typography>
                       <Typography
                         variant="caption"
                         sx={{
-                          display: "block",
-                          textAlign: "right",
-                          color: "#8a9ba8",
-                          fontSize: "0.65rem",
-                          mt: 0.5,
+                          color: isUser ? "#1976d2" : "#5c3d11",
+                          fontWeight: 600,
+                          mb: 0.3,
+                          px: 0.5,
                         }}
                       >
-                        {msg.time}
+                        {msg.name}
                       </Typography>
-                    </Box>
-                  </Box>
 
-                  {/* User avatar on right */}
-                  {isUser && (
-                    <Avatar
-                      sx={{
-                        width: 28,
-                        height: 28,
-                        fontSize: 11,
-                        backgroundColor: "#43a047",
-                        flexShrink: 0,
-                        mb: 0.5,
-                      }}
-                    >
-                      {getInitials(msg.name)}
-                    </Avatar>
-                  )}
+                      <Box
+                        sx={{
+                          backgroundColor: isUser ? "#d9fdd3" : "#fff",
+                          color: "#111",
+                          borderRadius: isUser ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
+                          px: 2,
+                          py: 1,
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                          {msg.text}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            display: "block",
+                            textAlign: "right",
+                            color: "#8a9ba8",
+                            fontSize: "0.65rem",
+                            mt: 0.5,
+                          }}
+                        >
+                          {msg.time}
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {isUser && (
+                      <Avatar
+                        sx={{
+                          width: 28,
+                          height: 28,
+                          fontSize: 11,
+                          backgroundColor: "#43a047",
+                          flexShrink: 0,
+                          mb: 0.5,
+                        }}
+                      >
+                        {getInitials(msg.name)}
+                      </Avatar>
+                    )}
+                  </Box>
                 </Box>
-              </Box>
-            );
-          })}
+              );
+            })
+          )}
           <div ref={messagesEndRef} />
         </Box>
 
