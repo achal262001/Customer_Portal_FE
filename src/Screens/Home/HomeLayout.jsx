@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Box, Typography, Dialog, DialogContent, IconButton, Divider } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
@@ -7,7 +8,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
-import { TicketsData } from "../Ticket/constant";
+import {
+  getAllTickets, getDashboardStats, getTicketActivity,
+  getTicketsByModule, getTicketsByCategory, createTicket,
+  getAllProjects, getRecentActivities, logout,
+} from "../../Supportive Files/api";
 
 // ─── Color helpers ────────────────────────────────────────────────────────────
 const modStyle = (m = "") => {
@@ -20,7 +25,7 @@ const modStyle = (m = "") => {
 };
 
 const sevStyle = (raw = "") => {
-  const s = raw.toLowerCase();
+  const s = String(raw ?? "").toLowerCase();
   if (s.includes("severity 1") || s === "s1" || s.includes("high"))
     return { bg: "#FCEBEB", color: "#A32D2D", label: "S1" };
   if (s.includes("severity 2") || s === "s2" || s.includes("moderate"))
@@ -73,61 +78,86 @@ const TD = ({ children, sx = {} }) => (
   </Box>
 );
 
-// ─── Normalize TicketsData ────────────────────────────────────────────────────
-const STATUS_CYCLE = ["Open","In Progress","Open","Closed","Open","Open","In Progress","Closed","Open","In Progress","Open","Closed","In Progress","Open","Closed","Open","Open"];
-
-const tickets = TicketsData.map((t, i) => ({
-  id:     t.id,
-  date:   t.Date,
-  title:  t.Title,
-  module: t.Module,
-  env:    t.Environment,
-  sev:    sevStyle(t.Status).label,
-  cat:    t["Ticket Category"] || "—",
-  status: STATUS_CYCLE[i % STATUS_CYCLE.length],
-  issues: t.Issues,
-  client: (t["Client "] || "").trim(),
-  spoc:   t["Delivery SPOC"],
-}));
-
-// ─── Tickets by Date (from TicketsData) ──────────────────────────────────────
-const shortDate = (d) => {
-  const [, m, day] = d.split("-");
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${months[parseInt(m, 10) - 1]} ${parseInt(day, 10)}`;
+// ─── API utilities ────────────────────────────────────────────────────────────
+const useFetch = (apiFn, deps = []) => {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    apiFn()
+      .then(res  => { if (active) { setData(res);  setLoading(false); } })
+      .catch(()  => { if (active) { setLoading(false); } });
+    return () => { active = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return { data, loading };
 };
 
-const ticketsByDate = (() => {
-  const counts = {};
-  TicketsData.forEach(t => { counts[t.Date] = (counts[t.Date] || 0) + 1; });
-  return Object.entries(counts)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, count]) => ({ date: shortDate(date), count }));
-})();
+const Spinner = () => (
+  <Box sx={{ textAlign: "center", py: 5, color: "#9CA3AF", fontSize: 13 }}>Loading…</Box>
+);
 
-// ─── Analytics static data ────────────────────────────────────────────────────
-const monthlyData = [
-  { month: "Sep", count: 3 }, { month: "Oct", count: 5 },
-  { month: "Nov", count: 4 }, { month: "Dec", count: 6 },
-  { month: "Jan", count: 3 }, { month: "Feb", count: 2 },
-  { month: "Mar", count: 1 }, { month: "Apr", count: 2 },
-];
-const categoryData = [
-  { name: "Environment issue", value: 33 },
-  { name: "Bug / Code defect", value: 25 },
-  { name: "Config gap",        value: 20 },
-  { name: "Other",             value: 22 },
-];
-const CAT_COLORS = ["#378ADD", "#EF9F27", "#639922", "#D4537E"];
-const resolutionData = [
-  { month: "Oct", days: 1.8 }, { month: "Nov", days: 2.4 },
-  { month: "Dec", days: 3.4 }, { month: "Jan", days: 2.9 },
-];
-const sevDist = [
-  { name: "S1", count: 8, fill: "#E24B4A" },
-  { name: "S2", count: 6, fill: "#EF9F27" },
-  { name: "S3", count: 3, fill: "#639922" },
-];
+const normalizeTicket = (t) => {
+  const sev = t.severity?.name || t.severity || t.sev || "";
+  return {
+    id:     String(t.id),
+    title:  t.title || "—",
+    module: t.module?.name  || t.module  || "—",
+    env:    t.environment?.name || t.environment || "—",
+    sev:    sevStyle(sev).label,
+    cat:    t.category?.name || t.category || "—",
+    status: t.status?.name  || t.status  || "Open",
+    date:   (t.createdAt || t.date || "").split("T")[0] || "—",
+    issues: t.description || t.issues || "",
+    client: t.client?.name  || t.client  || "—",
+    spoc:   t.deliverySpoc?.name || t.spoc?.name || t.spoc || "—",
+  };
+};
+
+const toArray = (res) => (Array.isArray(res) ? res : res?.data ?? res?.content ?? []);
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+const useApiErrors = () => {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    const handler = (e) => {
+      const id = Date.now() + Math.random();
+      setToasts(prev => [...prev, { id, message: e.detail }]);
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+    };
+    window.addEventListener("api-error", handler);
+    return () => window.removeEventListener("api-error", handler);
+  }, []);
+  return [toasts, setToasts];
+};
+
+const ToastContainer = () => {
+  const [toasts, setToasts] = useApiErrors();
+  if (toasts.length === 0) return null;
+  return (
+    <Box sx={{ position: "fixed", bottom: 20, right: 20, zIndex: 9999, display: "flex", flexDirection: "column", gap: "8px", pointerEvents: "none" }}>
+      {toasts.map(t => (
+        <Box key={t.id} sx={{
+          display: "flex", alignItems: "flex-start", gap: "10px",
+          backgroundColor: "#1F2937", color: "#fff",
+          px: "14px", py: "11px", borderRadius: "8px",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+          fontSize: 13, minWidth: 260, maxWidth: 380,
+          borderLeft: "3px solid #E24B4A",
+          pointerEvents: "all",
+          animation: "fadeInUp .2s ease",
+        }}>
+          <Box sx={{ flex: 1, lineHeight: 1.5 }}>{t.message}</Box>
+          <Box component="span" onClick={() => setToasts(p => p.filter(x => x.id !== t.id))}
+            sx={{ cursor: "pointer", opacity: 0.5, fontSize: 15, lineHeight: 1, "&:hover": { opacity: 1 }, flexShrink: 0, mt: "1px" }}>
+            ✕
+          </Box>
+        </Box>
+      ))}
+    </Box>
+  );
+};
 
 // ─── KB articles ─────────────────────────────────────────────────────────────
 const KB_ARTICLES = [
@@ -247,19 +277,24 @@ const TicketDetailDialog = ({ ticket, onClose }) => {
 // PANEL 1 — DASHBOARD
 // ═════════════════════════════════════════════════════════════════════════════
 const DashboardPanel = () => {
+  const { data: statsRaw,    loading: statsLoading }    = useFetch(() => getDashboardStats());
+  const { data: activityRaw, loading: activityLoading } = useFetch(() => getTicketActivity());
+  const { data: modulesRaw }                            = useFetch(() => getTicketsByModule());
+  const { data: ticketsRaw,  loading: ticketsLoading }  = useFetch(() => getAllTickets());
+
+  const stats        = statsRaw || {};
+  const ticketsByDate = toArray(activityRaw).map(d => ({
+    date:  d.date ? d.date.split("T")[0].slice(5).replace("-", " ") : d.label || d.name || "—",
+    count: d.count ?? d.value ?? 0,
+  }));
+  const moduleBreakdown = toArray(modulesRaw).map(m => ({ mod: m.name || m.module, n: m.count ?? m.value ?? 0 }));
+  const recentTickets   = toArray(ticketsRaw).slice(0, 3).map(normalizeTicket);
+
   const metrics = [
-    { label: "Open issues",      value: 9,     sub: "↑ 3 this week",          valueColor: "#185FA5" },
-    // { label: "SLA at risk",      value: 4,      sub: "Next breach in 2h",       valueColor: "#E24B4A" },
-    { label: "Avg resolution",   value: "3.4d", sub: "Last 30 days",            valueColor: "#111827" },
-    { label: "Closed this month",value: 0,      sub: "+0 vs prior month",     valueColor: "#639922" },
+    { label: "Open issues",       value: stats.openTickets   ?? stats.totalOpen   ?? "—", sub: "Awaiting action",   valueColor: "#185FA5" },
+    { label: "Avg resolution",    value: stats.avgResolution ?? stats.avgResolutionTime ?? "—", sub: "Last 30 days", valueColor: "#111827" },
+    { label: "Closed this month", value: stats.closedThisMonth ?? "—",                    sub: "vs prior month",    valueColor: "#639922" },
   ];
-  const slaItems = [
-    { title: "TKT-004 · Calendar Save Fails",  sev: "S1", pct: 87, risk: "87% breach risk – due in 2h",  barColor: "#E24B4A" },
-    { title: "TKT-011 · Data sync timeout",    sev: "S2", pct: 61, risk: "61% breach risk – due in 6h",  barColor: "#EF9F27" },
-    { title: "TKT-007 · Login redirect loop",  sev: "S2", pct: 44, risk: "44% breach risk – due in 14h", barColor: "#EF9F27" },
-    { title: "TKT-015 · Report export fails",  sev: "S3", pct: 18, risk: "18% breach risk – due in 2d",  barColor: "#639922" },
-  ];
-  const recentTickets = tickets.slice(0, 3);
 
   return (
     <Box>
@@ -325,12 +360,20 @@ const DashboardPanel = () => {
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
           <Card>
             <CardTitle>Module breakdown</CardTitle>
-            {[{ mod: "DPAI", n: 7 }, { mod: "TMS", n: 3 }, { mod: "DS", n: 2 }].map(({ mod, n }) => (
-              <Box key={mod} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: "7px", borderBottom: "0.5px solid #F3F4F6", "&:last-child": { borderBottom: "none" } }}>
-                <ModTag m={mod} />
-                <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{n} open</Typography>
-              </Box>
-            ))}
+            {moduleBreakdown.length > 0
+              ? moduleBreakdown.map(({ mod, n }) => (
+                  <Box key={mod} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: "7px", borderBottom: "0.5px solid #F3F4F6", "&:last-child": { borderBottom: "none" } }}>
+                    <ModTag m={mod} />
+                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{n} open</Typography>
+                  </Box>
+                ))
+              : [{ mod: "DPAI" }, { mod: "TMS" }, { mod: "DS" }].map(({ mod }) => (
+                  <Box key={mod} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: "7px", borderBottom: "0.5px solid #F3F4F6", "&:last-child": { borderBottom: "none" } }}>
+                    <ModTag m={mod} />
+                    <Typography sx={{ fontSize: 13, color: "#9CA3AF" }}>—</Typography>
+                  </Box>
+                ))
+            }
           </Card>
           <Card>
             <CardTitle>Delivery SPOC</CardTitle>
@@ -384,12 +427,20 @@ const AllTicketsPanel = () => {
   const [filterSev,      setFilterSev]      = useState("");
   const [filterStat,     setFilterStat]     = useState("");
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const [allTickets,     setAllTickets]     = useState([]);
+  const [loading,        setLoading]        = useState(true);
 
-  const filtered = tickets.filter(t =>
-    (!search     || t.title.toLowerCase().includes(search.toLowerCase()) || t.id.toLowerCase().includes(search.toLowerCase())) &&
-    (!filterMod  || t.module  === filterMod)  &&
-    (!filterSev  || t.sev     === filterSev)  &&
-    (!filterStat || t.status  === filterStat)
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getAllTickets({ module: filterMod || undefined, severity: filterSev || undefined, status: filterStat || undefined })
+      .then(res => { if (active) { setAllTickets(toArray(res).map(normalizeTicket)); setLoading(false); } })
+      .catch(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [filterMod, filterSev, filterStat]);
+
+  const filtered = allTickets.filter(t =>
+    !search || t.title.toLowerCase().includes(search.toLowerCase()) || t.id.toLowerCase().includes(search.toLowerCase())
   );
 
   const selSx = { fontSize: 13, py: "6px", px: "10px", borderRadius: "6px", border: "0.5px solid #D1D5DB", backgroundColor: "#fff", color: "#111827", cursor: "pointer", outline: "none" };
@@ -416,6 +467,7 @@ const AllTicketsPanel = () => {
         </Box>
       </Box>
 
+      {loading ? <Spinner /> : (
       <Card sx={{ overflowX: "auto" }}>
         <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
           <Box component="thead">
@@ -444,6 +496,7 @@ const AllTicketsPanel = () => {
           <Box sx={{ textAlign: "center", py: 6, color: "#9CA3AF", fontSize: 14 }}>No tickets match your filters</Box>
         )}
       </Card>
+      )}
     </Box>
   );
 };
@@ -457,6 +510,8 @@ const MyTicketsPanel = () => {
   const [filterMod,  setFilterMod]  = useState("");
   const [filterSev,  setFilterSev]  = useState("");
   const [filterStat, setFilterStat] = useState("");
+  const [allTickets, setAllTickets] = useState([]);
+  const [loading,    setLoading]    = useState(true);
 
   const lastUpdates = ["2h ago", "Yesterday", "3d ago", "1d ago", "5h ago", "4h ago", "6d ago", "3h ago", "2d ago", "1h ago"];
 
@@ -466,12 +521,21 @@ const MyTicketsPanel = () => {
     outline: "none", cursor: "pointer", fontFamily: "inherit",
   };
 
-  const myTickets = tickets
-    .filter(t => t.module !== "EDM")
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getAllTickets({ module: filterMod || undefined, severity: filterSev || undefined, status: filterStat || undefined })
+      .then(res => { if (active) { setAllTickets(toArray(res).map(normalizeTicket)); setLoading(false); } })
+      .catch(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [filterMod, filterSev, filterStat]);
+
+  const myTickets = allTickets
+    .filter(t => t.status !== "Closed")
     .filter(t =>
-      (!search     || t.title.toLowerCase().includes(search.toLowerCase()) || String(t.id).includes(search)) &&
+      (!search    || t.title.toLowerCase().includes(search.toLowerCase()) || String(t.id).includes(search)) &&
       (!filterMod  || t.module === filterMod) &&
-      (!filterSev  || t.sev === filterSev) &&
+      (!filterSev  || t.sev    === filterSev) &&
       (!filterStat || t.status === filterStat)
     );
 
@@ -535,7 +599,7 @@ const MyTicketsPanel = () => {
 // ═════════════════════════════════════════════════════════════════════════════
 // PANEL 4 — RAISE AN ISSUE
 // ═════════════════════════════════════════════════════════════════════════════
-const RaiseIssuePanel = () => {
+export const RaiseIssuePanel = () => {
   // ── AI side ──
   const [issueText, setIssueText] = useState("");
   const [showAI,    setShowAI]    = useState(false);
@@ -560,21 +624,39 @@ const RaiseIssuePanel = () => {
   const handleClear = () => { clearTimeout(timerRef.current); setIssueText(""); setShowAI(false); };
 
   // ── Manual side ──
-  const EMPTY_FORM = { title: "", description: "", module: "", environment: "", category: "", severity: "", client: "" };
-  const [form, setForm]           = useState(EMPTY_FORM);
+  const EMPTY_FORM = { title: "", description: "", module: "", environment: "", category: "", severity: "", project: "" };
+  const [form, setForm]             = useState(EMPTY_FORM);
   const [manSubmitted, setManSubmitted] = useState(false);
-  const [errors, setErrors]       = useState({});
+  const [manSubmitting, setManSubmitting] = useState(false);
+  const [errors, setErrors]         = useState({});
 
   const setField = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
 
-  const handleManSubmit = () => {
+  const handleManSubmit = async () => {
     const required = ["title", "description", "module", "environment", "category", "severity"];
     const newErr = {};
     required.forEach(k => { if (!form[k]) newErr[k] = "Required"; });
     if (Object.keys(newErr).length) { setErrors(newErr); return; }
-    setForm(EMPTY_FORM); setErrors({});
-    setManSubmitted(true);
-    setTimeout(() => setManSubmitted(false), 3000);
+
+    setManSubmitting(true);
+    try {
+      await createTicket({
+        title:       form.title,
+        description: form.description,
+        module:      form.module,
+        environment: form.environment,
+        category:    form.category,
+        severity:    form.severity,
+        project:     form.project || undefined,
+      });
+      setForm(EMPTY_FORM); setErrors({});
+      setManSubmitted(true);
+      setTimeout(() => setManSubmitted(false), 3500);
+    } catch (_) {
+      // error already shown by toast via api interceptor
+    } finally {
+      setManSubmitting(false);
+    }
   };
 
   const aiFields = [
@@ -753,11 +835,11 @@ const RaiseIssuePanel = () => {
 
           {/* Actions */}
           <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
-            <Box component="button" onClick={handleManSubmit}
-              sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", "&:hover": { opacity: 0.9 } }}>
-              Submit ticket
+            <Box component="button" onClick={handleManSubmit} disabled={manSubmitting}
+              sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", opacity: manSubmitting ? 0.7 : 1, cursor: manSubmitting ? "not-allowed" : "pointer", "&:hover": { opacity: manSubmitting ? 0.7 : 0.9 } }}>
+              {manSubmitting ? "Submitting…" : "Submit ticket"}
             </Box>
-            <Box component="button" onClick={() => { setForm(EMPTY_FORM); setErrors({}); }}
+            <Box component="button" onClick={() => { setForm(EMPTY_FORM); setErrors({}); }} disabled={manSubmitting}
               sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
               Reset
             </Box>
@@ -772,7 +854,31 @@ const RaiseIssuePanel = () => {
 // ═════════════════════════════════════════════════════════════════════════════
 // PANEL 5 — ANALYTICS
 // ═════════════════════════════════════════════════════════════════════════════
-const AnalyticsPanel = () => (
+const STATIC_MONTHLY    = [{ month: "Sep", count: 3 }, { month: "Oct", count: 5 }, { month: "Nov", count: 4 }, { month: "Dec", count: 6 }, { month: "Jan", count: 3 }, { month: "Feb", count: 2 }, { month: "Mar", count: 1 }, { month: "Apr", count: 2 }];
+const STATIC_CATEGORIES = [{ name: "Environment issue", value: 33 }, { name: "Bug / Code defect", value: 25 }, { name: "Config gap", value: 20 }, { name: "Other", value: 22 }];
+const CAT_COLORS        = ["#378ADD", "#EF9F27", "#639922", "#D4537E"];
+const STATIC_SEV_DIST   = [{ name: "S1", count: 8, fill: "#E24B4A" }, { name: "S2", count: 6, fill: "#EF9F27" }, { name: "S3", count: 3, fill: "#639922" }];
+
+const AnalyticsPanel = () => {
+  const { data: activityRaw } = useFetch(() => getTicketActivity());
+  const { data: categoryRaw } = useFetch(() => getTicketsByCategory());
+
+  const rawActivity = toArray(activityRaw);
+  const rawCategory = toArray(categoryRaw);
+
+  const monthlyData = rawActivity.length > 0
+    ? rawActivity.map(d => ({
+        month: d.date ? d.date.split("T")[0].slice(5).replace("-", " ") : d.label || d.name || "—",
+        count: d.count ?? d.value ?? 0,
+      }))
+    : STATIC_MONTHLY;
+
+  const totalCatVal  = rawCategory.reduce((s, d) => s + (d.count ?? d.value ?? 0), 0) || 1;
+  const categoryData = rawCategory.length > 0
+    ? rawCategory.map(d => ({ name: d.name || d.category || "—", value: Math.round(((d.count ?? d.value ?? 0) / totalCatVal) * 100) }))
+    : STATIC_CATEGORIES;
+
+  return (
   <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
     {/* Tickets by month */}
     <Card>
@@ -802,7 +908,7 @@ const AnalyticsPanel = () => (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.8 }}>
           {categoryData.map((c, i) => (
             <Box key={c.name} sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-              <Box sx={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: CAT_COLORS[i], flexShrink: 0 }} />
+              <Box sx={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: CAT_COLORS[i % CAT_COLORS.length], flexShrink: 0 }} />
               <Typography sx={{ fontSize: 12 }}>{c.name} ({c.value}%)</Typography>
             </Box>
           ))}
@@ -814,8 +920,8 @@ const AnalyticsPanel = () => (
     <Card>
       <CardTitle>Severity distribution</CardTitle>
       <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.5, height: 120, mb: 1 }}>
-        {sevDist.map(s => {
-          const maxVal = Math.max(...sevDist.map(x => x.count));
+        {STATIC_SEV_DIST.map(s => {
+          const maxVal = Math.max(...STATIC_SEV_DIST.map(x => x.count));
           return (
             <Box key={s.name} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, height: "100%" }}>
               <Typography sx={{ fontSize: 11, fontWeight: 500 }}>{s.count}</Typography>
@@ -833,7 +939,7 @@ const AnalyticsPanel = () => (
     <Card>
       <CardTitle>Avg resolution time (days)</CardTitle>
       <ResponsiveContainer width="100%" height={150}>
-        <BarChart data={resolutionData} barSize={22} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+        <BarChart data={[{ month: "Oct", days: 1.8 }, { month: "Nov", days: 2.4 }, { month: "Dec", days: 3.4 }, { month: "Jan", days: 2.9 }]} barSize={22} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
           <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
@@ -843,7 +949,8 @@ const AnalyticsPanel = () => (
       </ResponsiveContainer>
     </Card>
   </Box>
-);
+  );
+};
 
 // ═════════════════════════════════════════════════════════════════════════════
 // PANEL 6 — PROJECTS
@@ -940,9 +1047,18 @@ const PANELS = {
 
 const HomeLayout = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const navigate = useNavigate();
+
+  const handleLogout = useCallback(async () => {
+    try { await logout(); } catch (_) {}
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  }, [navigate]);
 
   return (
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", backgroundColor: "#F3F4F6", fontFamily: "inherit" }}>
+      <ToastContainer />
 
       {/* ── Top bar ── */}
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: "20px", py: "14px", borderBottom: "0.5px solid #E5E7EB", backgroundColor: "#fff", flexShrink: 0 }}>
@@ -955,6 +1071,32 @@ const HomeLayout = () => {
         <Box sx={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <Box sx={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: "#E6F1FB", color: "#185FA5", fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", border: "0.5px solid #E5E7EB" }}>C2</Box>
           <Typography sx={{ fontSize: 13, color: "#6B7280" }}>Client 2</Typography>
+          <Box
+            component="button"
+            onClick={handleLogout}
+            sx={{
+              ml: "4px",
+              display: "flex", alignItems: "center", gap: "5px",
+              px: "10px", py: "5px",
+              borderRadius: "6px",
+              border: "0.5px solid #E5E7EB",
+              backgroundColor: "#fff",
+              color: "#6B7280",
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              "&:hover": { backgroundColor: "#F9FAFB", color: "#A32D2D", borderColor: "#FECACA" },
+              transition: "all .15s",
+            }}
+          >
+            <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2} style={{ flexShrink: 0 }}>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Logout
+          </Box>
         </Box>
       </Box>
 

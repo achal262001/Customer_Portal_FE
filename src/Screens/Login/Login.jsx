@@ -14,7 +14,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { useNavigate } from "react-router-dom";
-import { handleLogin } from "../../Supportive Files/apis";
+import { login } from "../../Supportive Files/api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -23,12 +23,24 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const HandleSubmit = async () => {
-    const response = await handleLogin(username, password);
-    if(username === "admin" && password === "admin123"){
-      navigate("/admin",{state:{user: "Admin"}});
-    }
-    else {
-      navigate("/home",{state:{user: "Customer"}});
+    try {
+      const response = await login(username, password);
+      console.log(response);
+
+      const token = response.token;
+      const user  = response.user ?? response;
+      const role  = user?.role?.name || user?.role || "";
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      if (role.toLowerCase() === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/home");
+      }
+    } catch (err) {
+      console.error("Login failed:", err);
     }
   };
 

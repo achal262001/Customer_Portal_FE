@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -9,6 +9,7 @@ import {
   DialogContent,
   IconButton,
   Divider,
+  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
@@ -17,7 +18,7 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CreateTicket from "./CreateTicket";
-import { TicketsData } from "./constant";
+import { getAllTickets, createTicket } from "../../Supportive Files/api";
 import { useNavigate } from "react-router-dom";
 
 const getSeverityColors = (status = "") => {
@@ -54,18 +55,29 @@ const DetailRow = ({ label, children }) => (
 const GRID_COLS = "48px 60px 110px 1fr 100px 80px 110px 180px 40px";
 
 const Ticket = () => {
-  const [tickets, setTickets] = useState(TicketsData);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [search, setSearch] = useState("");
 
   const navigate = useNavigate();
 
-  const handleNewTicket = (ticket) => {
-    setTickets((prev) => [
-      ...prev,
-      { ...ticket, id: prev.length + 1 },
-    ]);
+  useEffect(() => {
+    getAllTickets()
+      .then(setTickets)
+      .catch((err) => setError(err?.message ?? "Failed to load tickets"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleNewTicket = async (ticketData) => {
+    try {
+      const created = await createTicket(ticketData);
+      setTickets((prev) => [created, ...prev]);
+    } catch {
+      // silently ignore; drawer already closed
+    }
   };
 
   const filtered = tickets.filter(
@@ -213,7 +225,17 @@ const Ticket = () => {
         </Box>
 
         {/* Table Rows */}
-        {filtered.length > 0 ? (
+        {loading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 10 }}>
+            <CircularProgress size={36} sx={{ color: "#4a6741" }} />
+          </Box>
+        ) : error ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 10 }}>
+            <Typography variant="body2" sx={{ color: "#ef4444" }}>
+              {error}
+            </Typography>
+          </Box>
+        ) : filtered.length > 0 ? (
           filtered.map((ticket, idx) => {
             const sevColor = getSeverityColors(ticket.Status);
             const dot = getDotColor(ticket.Status);
