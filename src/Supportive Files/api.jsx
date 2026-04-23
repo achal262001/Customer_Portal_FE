@@ -142,6 +142,22 @@ export const getTicketActivity = (params = {}) =>
 export const getTicketsByCategory = (params = {}) =>
   api.get("/dashboard/charts/tickets-by-category", { params });
 
+// ── AI Ticket Generation ──────────────────────────────────────────────────────
+export const generateTicket = (description) =>
+  api.post("/ticket/generate", { description });
+
+// ── Triage Agent (LLM service — port 8000) ───────────────────────────────────
+const triageApi = axios.create({
+  baseURL: "http://localhost:8000",
+  headers: { "Content-Type": "application/json" },
+});
+
+export const generateDraft = (input_text) =>
+  triageApi.post("/generate-draft", { input_text }).then((r) => r.data);
+
+export const finalizeTicket = (fields) =>
+  triageApi.post("/finalize-ticket", fields).then((r) => r.data);
+
 // ── Communication ─────────────────────────────────────────
 export const getCommunicationTickets = (params = {}) =>
   api.get("/communication/tickets", { params });

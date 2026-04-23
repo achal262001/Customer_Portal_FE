@@ -12,6 +12,7 @@ import {
   getAllTickets, getDashboardStats, getTicketActivity,
   getTicketsByModule, getTicketsByCategory, createTicket,
   getAllProjects, getRecentActivities, logout,
+  generateDraft, finalizeTicket,
 } from "../../Supportive Files/api";
 
 // ─── Color helpers ────────────────────────────────────────────────────────────
@@ -600,35 +601,83 @@ const MyTicketsPanel = () => {
 // PANEL 4 — RAISE AN ISSUE
 // ═════════════════════════════════════════════════════════════════════════════
 export const RaiseIssuePanel = () => {
-  // ── AI side ──
-  const [issueText, setIssueText] = useState("");
-  const [showAI,    setShowAI]    = useState(false);
-  const [aiSubmitted, setAiSubmitted] = useState(false);
-  const timerRef = useRef(null);
+  const inputSx = (err) => ({
+    width: "100%", p: "8px 10px", border: `0.5px solid ${err ? "#A32D2D" : "#D1D5DB"}`,
+    borderRadius: "6px", fontSize: 13, fontFamily: "inherit", outline: "none",
+    backgroundColor: "#fff", color: "#111827", boxSizing: "border-box",
+    "&:focus": { borderColor: "#185FA5" },
+  });
+  const selectSx = (err) => ({ ...inputSx(err), appearance: "auto", cursor: "pointer", height: 36 });
+  const labelSx  = { fontSize: 12, fontWeight: 500, color: "#374151", mb: 0.4, display: "block" };
+  const errSx    = { fontSize: 11, color: "#A32D2D", mt: 0.3 };
+  const btnBase  = { px: "16px", py: "8px", borderRadius: "6px", fontSize: 13, cursor: "pointer", fontWeight: 500, fontFamily: "inherit" };
 
-  const handleChange = (e) => {
-    const val = e.target.value;
-    setIssueText(val);
-    clearTimeout(timerRef.current);
-    if (val.trim().length > 20) {
-      timerRef.current = setTimeout(() => setShowAI(true), 600);
-    } else {
-      setShowAI(false);
+  // ── AI side state ──────────────────────────────────────────────────────────
+  const EMPTY_DRAFT = { title: "", description: "", priority: "Medium", category: "" };
+  const [issueText,      setIssueText]      = useState("");
+  const [draft,          setDraft]          = useState(EMPTY_DRAFT);
+  // step: "idle" | "generating" | "draft" | "finalizing" | "final" | "submitting" | "done"
+  const [aiStep,         setAiStep]         = useState("idle");
+  const [finalTicket,    setFinalTicket]    = useState(null);
+  const [aiError,        setAiError]        = useState("");
+
+  const setDraftField = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+
+  const handleGenerateDraft = async () => {
+    if (!issueText.trim()) { setAiError("Please describe your issue first."); return; }
+    setAiError(""); setAiStep("generating");
+    try {
+      const result = await generateDraft(issueText);
+      setDraft({ title: result.title, description: result.description, priority: result.priority, category: result.category });
+      setAiStep("draft");
+    } catch (err) {
+      setAiError(err?.message || "Failed to generate draft. Please try again.");
+      setAiStep("idle");
     }
   };
-  const handleAiSubmit = () => {
-    setIssueText(""); setShowAI(false);
-    setAiSubmitted(true);
-    setTimeout(() => setAiSubmitted(false), 3000);
-  };
-  const handleClear = () => { clearTimeout(timerRef.current); setIssueText(""); setShowAI(false); };
 
-  // ── Manual side ──
+  const handleFinalize = async () => {
+    if (!draft.title.trim() || !draft.description.trim()) { setAiError("Title and description are required."); return; }
+    setAiError(""); setAiStep("finalizing");
+    try {
+      const result = await finalizeTicket({ title: draft.title, description: draft.description, priority: draft.priority, category: draft.category, user_modified: true });
+      setFinalTicket(result);
+      setAiStep("final");
+    } catch (err) {
+      setAiError(err?.message || "Failed to finalize ticket. Please try again.");
+      setAiStep("draft");
+    }
+  };
+
+  const handleAiSubmit = async () => {
+    if (!finalTicket) return;
+    setAiStep("submitting");
+    try {
+      await createTicket({
+        title:       finalTicket.final_title,
+        description: finalTicket.final_description,
+        priority:    finalTicket.priority,
+        category:    finalTicket.category,
+        metadata:    finalTicket.metadata,
+      });
+      setAiStep("done");
+      setTimeout(() => { setAiStep("idle"); setIssueText(""); setDraft(EMPTY_DRAFT); setFinalTicket(null); }, 3500);
+    } catch (_) {
+      // error shown by toast via api interceptor
+      setAiStep("final");
+    }
+  };
+
+  const handleReset = () => { setAiStep("idle"); setIssueText(""); setDraft(EMPTY_DRAFT); setFinalTicket(null); setAiError(""); };
+
+  const isAiBusy = aiStep === "generating" || aiStep === "finalizing" || aiStep === "submitting";
+
+  // ── Manual side state ──────────────────────────────────────────────────────
   const EMPTY_FORM = { title: "", description: "", module: "", environment: "", category: "", severity: "", project: "" };
-  const [form, setForm]             = useState(EMPTY_FORM);
+  const [form,         setForm]         = useState(EMPTY_FORM);
   const [manSubmitted, setManSubmitted] = useState(false);
-  const [manSubmitting, setManSubmitting] = useState(false);
-  const [errors, setErrors]         = useState({});
+  const [manSubmitting,setManSubmitting]= useState(false);
+  const [errors,       setErrors]       = useState({});
 
   const setField = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
 
@@ -637,18 +686,9 @@ export const RaiseIssuePanel = () => {
     const newErr = {};
     required.forEach(k => { if (!form[k]) newErr[k] = "Required"; });
     if (Object.keys(newErr).length) { setErrors(newErr); return; }
-
     setManSubmitting(true);
     try {
-      await createTicket({
-        title:       form.title,
-        description: form.description,
-        module:      form.module,
-        environment: form.environment,
-        category:    form.category,
-        severity:    form.severity,
-        project:     form.project || undefined,
-      });
+      await createTicket({ title: form.title, description: form.description, module: form.module, environment: form.environment, category: form.category, severity: form.severity, project: form.project || undefined });
       setForm(EMPTY_FORM); setErrors({});
       setManSubmitted(true);
       setTimeout(() => setManSubmitted(false), 3500);
@@ -659,86 +699,140 @@ export const RaiseIssuePanel = () => {
     }
   };
 
-  const aiFields = [
-    { name: "Module",      val: "DPAI" },
-    { name: "Environment", val: "UAT" },
-    { name: "Category",    val: "Environment issue" },
-    { name: "Severity",    val: "Severity 2 (Moderate)" },
-  ];
-  const similar = [
-    { title: "Calendar Save Fails with 400 Error",        meta: "TKT-001 · DPAI · Closed · Resolved in 2d" },
-    { title: "Environment config missing after UAT reset", meta: "TKT-008 · DPAI · Closed · Resolved in 1d" },
-  ];
-
-  const inputSx = (err) => ({
-    width: "100%", p: "8px 10px", border: `0.5px solid ${err ? "#A32D2D" : "#D1D5DB"}`,
-    borderRadius: "6px", fontSize: 13, fontFamily: "inherit", outline: "none",
-    backgroundColor: "#fff", color: "#111827", boxSizing: "border-box",
-    "&:focus": { borderColor: "#185FA5" },
-  });
-  const selectSx = (err) => ({ ...inputSx(err), appearance: "auto", cursor: "pointer", height: 36 });
-  const labelSx = { fontSize: 12, fontWeight: 500, color: "#374151", mb: 0.4, display: "block" };
-  const errSx   = { fontSize: 11, color: "#A32D2D", mt: 0.3 };
-  const btnBase = { px: "16px", py: "8px", borderRadius: "6px", fontSize: 13, cursor: "pointer", fontWeight: 500, fontFamily: "inherit" };
-
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, height: "100%", overflow: "hidden" }}>
 
-      {/* ── LEFT: AI-assisted ── */}
+      {/* ── LEFT: AI-assisted 2-step flow ── */}
       <Box sx={{ borderRight: "1px solid #E5E7EB", pr: 3, overflowY: "auto" }}>
         <Box sx={{ mb: 2 }}>
           <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#111827", mb: 0.3 }}>AI-assisted ticket</Typography>
-          <Typography sx={{ fontSize: 12, color: "#9CA3AF" }}>Describe freely — AI analyses and pre-fills fields.</Typography>
+          <Typography sx={{ fontSize: 12, color: "#9CA3AF" }}>Describe your issue — AI drafts the fields, you review and submit.</Typography>
         </Box>
 
-        {aiSubmitted && (
+        {/* Success banner */}
+        {aiStep === "done" && (
           <Box sx={{ backgroundColor: "#EAF3DE", border: "0.5px solid #3B6D11", borderRadius: "6px", p: "10px 14px", fontSize: 13, color: "#3B6D11", mb: 2 }}>
             Ticket submitted successfully!
           </Box>
         )}
 
-        <Box sx={{ mb: 2 }}>
-          <Typography component="label" sx={{ ...labelSx }}>Describe your issue</Typography>
-          <Box
-            component="textarea"
-            value={issueText}
-            onChange={handleChange}
-            placeholder="e.g. When I try to save a calendar entry in DPAI it returns a 400 error…"
-            sx={{ ...inputSx(false), resize: "vertical", minHeight: 100, display: "block" }}
-          />
-        </Box>
+        {/* Error banner */}
+        {aiError && (
+          <Box sx={{ backgroundColor: "#FCEBEB", border: "0.5px solid #A32D2D", borderRadius: "6px", p: "10px 14px", fontSize: 13, color: "#A32D2D", mb: 2 }}>
+            {aiError}
+          </Box>
+        )}
 
-        {showAI && (
-          <Box>
-            <Box sx={{ backgroundColor: "#EBF4FF", border: "0.5px solid #BFDBFE", borderRadius: "6px", p: "12px 14px", mb: 2 }}>
-              <Typography sx={{ fontSize: 11, fontWeight: 500, color: "#185FA5", mb: 0.8 }}>✦ AI pre-fill suggestion</Typography>
-              <Typography sx={{ fontSize: 13, color: "#6B7280", mb: 1.2 }}>Based on your description, we identified the following:</Typography>
+        {/* Step 1 — Raw input */}
+        {aiStep !== "done" && (
+          <Box sx={{ mb: 2 }}>
+            <Typography component="label" sx={labelSx}>Describe your issue</Typography>
+            <Box
+              component="textarea"
+              value={issueText}
+              onChange={e => { setIssueText(e.target.value); setAiError(""); }}
+              disabled={isAiBusy || aiStep === "final"}
+              placeholder="e.g. When I try to save a calendar entry in DPAI it returns a 400 error…"
+              sx={{ ...inputSx(false), resize: "vertical", minHeight: 90, display: "block", opacity: (isAiBusy || aiStep === "final") ? 0.6 : 1 }}
+            />
+          </Box>
+        )}
+
+        {/* Generate Draft button (step 1) */}
+        {(aiStep === "idle" || aiStep === "generating") && (
+          <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+            <Box component="button" onClick={handleGenerateDraft} disabled={isAiBusy}
+              sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", opacity: isAiBusy ? 0.7 : 1, cursor: isAiBusy ? "not-allowed" : "pointer", "&:hover": { opacity: isAiBusy ? 0.7 : 0.9 } }}>
+              {aiStep === "generating" ? "Generating…" : "✦ Generate Draft"}
+            </Box>
+          </Box>
+        )}
+
+        {/* Step 2 — Editable draft fields */}
+        {(aiStep === "draft" || aiStep === "finalizing" || aiStep === "final" || aiStep === "submitting") && (
+          <Box sx={{ backgroundColor: "#EBF4FF", border: "0.5px solid #BFDBFE", borderRadius: "6px", p: "14px", mb: 2 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#185FA5", mb: 1.2 }}>✦ AI Draft — review &amp; edit before finalizing</Typography>
+
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.4 }}>
+              {/* Title */}
+              <Box>
+                <Typography component="label" sx={labelSx}>Title</Typography>
+                <Box component="input" value={draft.title}
+                  onChange={e => setDraftField("title", e.target.value)}
+                  disabled={aiStep === "final" || aiStep === "submitting"}
+                  sx={{ ...inputSx(false), opacity: (aiStep === "final" || aiStep === "submitting") ? 0.7 : 1 }} />
+              </Box>
+
+              {/* Description */}
+              <Box>
+                <Typography component="label" sx={labelSx}>Description</Typography>
+                <Box component="textarea" value={draft.description}
+                  onChange={e => setDraftField("description", e.target.value)}
+                  disabled={aiStep === "final" || aiStep === "submitting"}
+                  sx={{ ...inputSx(false), resize: "vertical", minHeight: 70, display: "block", opacity: (aiStep === "final" || aiStep === "submitting") ? 0.7 : 1 }} />
+              </Box>
+
+              {/* Priority + Category */}
               <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                {aiFields.map(f => (
-                  <Box key={f.name} sx={{ backgroundColor: "#fff", borderRadius: "6px", p: "8px 10px", border: "0.5px solid #E5E7EB" }}>
-                    <Typography sx={{ fontSize: 11, color: "#6B7280", mb: 0.3 }}>{f.name}</Typography>
-                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{f.val}</Typography>
+                <Box>
+                  <Typography component="label" sx={labelSx}>Priority</Typography>
+                  <Box component="select" value={draft.priority}
+                    onChange={e => setDraftField("priority", e.target.value)}
+                    disabled={aiStep === "final" || aiStep === "submitting"}
+                    sx={{ ...selectSx(false), opacity: (aiStep === "final" || aiStep === "submitting") ? 0.7 : 1 }}>
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
                   </Box>
-                ))}
-              </Box>
-            </Box>
-
-            <Box sx={{ mb: 2 }}>
-              <Typography sx={{ fontSize: 12, color: "#6B7280", mb: 1 }}>Similar tickets — may already be resolved</Typography>
-              {similar.map(s => (
-                <Box key={s.title} sx={{ p: "8px 10px", border: "0.5px solid #E5E7EB", borderRadius: "6px", mb: 0.8, cursor: "pointer", "&:hover": { backgroundColor: "#F9FAFB" } }}>
-                  <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{s.title}</Typography>
-                  <Typography sx={{ fontSize: 11, color: "#9CA3AF", mt: 0.3 }}>{s.meta}</Typography>
                 </Box>
-              ))}
+                <Box>
+                  <Typography component="label" sx={labelSx}>Category</Typography>
+                  <Box component="input" value={draft.category}
+                    onChange={e => setDraftField("category", e.target.value)}
+                    disabled={aiStep === "final" || aiStep === "submitting"}
+                    sx={{ ...inputSx(false), opacity: (aiStep === "final" || aiStep === "submitting") ? 0.7 : 1 }} />
+                </Box>
+              </Box>
             </Box>
 
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Box component="button" onClick={handleAiSubmit} sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", "&:hover": { opacity: 0.9 } }}>
-                Confirm &amp; submit
+            {/* Finalize button (step 2) */}
+            {(aiStep === "draft" || aiStep === "finalizing") && (
+              <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
+                <Box component="button" onClick={handleFinalize} disabled={isAiBusy}
+                  sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", opacity: isAiBusy ? 0.7 : 1, cursor: isAiBusy ? "not-allowed" : "pointer", "&:hover": { opacity: isAiBusy ? 0.7 : 0.9 } }}>
+                  {aiStep === "finalizing" ? "Finalizing…" : "Finalize Ticket"}
+                </Box>
+                <Box component="button" onClick={handleReset} disabled={isAiBusy}
+                  sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
+                  Start over
+                </Box>
               </Box>
-              <Box component="button" onClick={handleClear} sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
-                Clear
+            )}
+          </Box>
+        )}
+
+        {/* Step 3 — Final preview + submit */}
+        {(aiStep === "final" || aiStep === "submitting") && finalTicket && (
+          <Box sx={{ backgroundColor: "#EAF3DE", border: "0.5px solid #3B6D11", borderRadius: "6px", p: "14px", mb: 2 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#3B6D11", mb: 1 }}>Ready to submit</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{finalTicket.final_title}</Typography>
+            <Typography sx={{ fontSize: 12, color: "#6B7280", mt: 0.4, mb: 1, whiteSpace: "pre-wrap" }}>{finalTicket.final_description}</Typography>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              <Tag label={`Priority: ${finalTicket.priority}`} bg="#EBF4FF" color="#185FA5" />
+              <Tag label={`Category: ${finalTicket.category}`} bg="#F3F4F6" color="#6B7280" />
+            </Box>
+            <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
+              <Box component="button" onClick={handleAiSubmit} disabled={aiStep === "submitting"}
+                sx={{ ...btnBase, backgroundColor: "#3B6D11", color: "#fff", border: "none", opacity: aiStep === "submitting" ? 0.7 : 1, cursor: aiStep === "submitting" ? "not-allowed" : "pointer", "&:hover": { opacity: aiStep === "submitting" ? 0.7 : 0.9 } }}>
+                {aiStep === "submitting" ? "Submitting…" : "Submit Ticket"}
+              </Box>
+              <Box component="button" onClick={() => setAiStep("draft")} disabled={aiStep === "submitting"}
+                sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
+                Edit draft
+              </Box>
+              <Box component="button" onClick={handleReset} disabled={aiStep === "submitting"}
+                sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
+                Start over
               </Box>
             </Box>
           </Box>
@@ -759,16 +853,13 @@ export const RaiseIssuePanel = () => {
         )}
 
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.6 }}>
-          {/* Title */}
           <Box>
             <Typography component="label" sx={labelSx}>Title <span style={{ color: "#A32D2D" }}>*</span></Typography>
             <Box component="input" value={form.title} onChange={e => setField("title", e.target.value)}
-              placeholder="Short summary of the issue"
-              sx={inputSx(errors.title)} />
+              placeholder="Short summary of the issue" sx={inputSx(errors.title)} />
             {errors.title && <Typography sx={errSx}>{errors.title}</Typography>}
           </Box>
 
-          {/* Description */}
           <Box>
             <Typography component="label" sx={labelSx}>Description <span style={{ color: "#A32D2D" }}>*</span></Typography>
             <Box component="textarea" value={form.description} onChange={e => setField("description", e.target.value)}
@@ -777,7 +868,6 @@ export const RaiseIssuePanel = () => {
             {errors.description && <Typography sx={errSx}>{errors.description}</Typography>}
           </Box>
 
-          {/* Module + Environment */}
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
             <Box>
               <Typography component="label" sx={labelSx}>Module <span style={{ color: "#A32D2D" }}>*</span></Typography>
@@ -797,7 +887,6 @@ export const RaiseIssuePanel = () => {
             </Box>
           </Box>
 
-          {/* Category + Severity */}
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
             <Box>
               <Typography component="label" sx={labelSx}>Category <span style={{ color: "#A32D2D" }}>*</span></Typography>
@@ -817,23 +906,14 @@ export const RaiseIssuePanel = () => {
             </Box>
           </Box>
 
-          {/* Client (optional) */}
           <Box>
-            {/* <Typography component="label" sx={labelSx}>Client</Typography>
-            <Box component="select" value={form.client} onChange={e => setField("client", e.target.value)} sx={selectSx(false)}>
-              <option value="">Select client (optional)</option>
-              <option>Client 1</option><option>Client 2</option><option>Client 3</option>
-            </Box> */}
-            <Box>
-              <Typography component="label" sx={labelSx}>Project <span style={{ color: "#A32D2D" }}>*</span></Typography>
-              <Box component="select" value={form.project} onChange={e => setField("project", e.target.value)} sx={selectSx(errors.project)}>
-                <option value="">Select project</option>
-                <option>DPAI – Phase 2 Rollout</option><option>TMS – Configuration Upgrade</option>
-              </Box>
+            <Typography component="label" sx={labelSx}>Project</Typography>
+            <Box component="select" value={form.project} onChange={e => setField("project", e.target.value)} sx={selectSx(false)}>
+              <option value="">Select project (optional)</option>
+              <option>DPAI – Phase 2 Rollout</option><option>TMS – Configuration Upgrade</option>
             </Box>
           </Box>
 
-          {/* Actions */}
           <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
             <Box component="button" onClick={handleManSubmit} disabled={manSubmitting}
               sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", opacity: manSubmitting ? 0.7 : 1, cursor: manSubmitting ? "not-allowed" : "pointer", "&:hover": { opacity: manSubmitting ? 0.7 : 0.9 } }}>
