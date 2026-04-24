@@ -13,7 +13,12 @@ import {
   getTicketsByModule, getTicketsByCategory, createTicket,
   getAllProjects, getRecentActivities, logout,
   generateDraft, finalizeTicket,
+  getAllModules, getAllEnvironments, getAllCategories,
+  getAllSeverities, getMilestones,
+  getAllClients,
+  getTicketsByClient,
 } from "../../Supportive Files/api";
+import { TriageFlow } from "./TriageFlow";
 
 // ─── Color helpers ────────────────────────────────────────────────────────────
 const modStyle = (m = "") => {
@@ -102,7 +107,7 @@ const Spinner = () => (
 const normalizeTicket = (t) => {
   const sev = t.severity?.name || t.severity || t.sev || "";
   return {
-    id:     String(t.id),
+    id:     String(t.ticketId || t.id),
     title:  t.title || "—",
     module: t.module?.name  || t.module  || "—",
     env:    t.environment?.name || t.environment || "—",
@@ -288,7 +293,7 @@ const DashboardPanel = () => {
     date:  d.date ? d.date.split("T")[0].slice(5).replace("-", " ") : d.label || d.name || "—",
     count: d.count ?? d.value ?? 0,
   }));
-  const moduleBreakdown = toArray(modulesRaw).map(m => ({ mod: m.name || m.module, n: m.count ?? m.value ?? 0 }));
+  const moduleBreakdown = toArray(modulesRaw).map(m => ({ mod: m.label || m.module, n: m.count ?? m.value ?? 0 }));
   const recentTickets   = toArray(ticketsRaw).slice(0, 3).map(normalizeTicket);
 
   const metrics = [
@@ -368,12 +373,7 @@ const DashboardPanel = () => {
                     <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{n} open</Typography>
                   </Box>
                 ))
-              : [{ mod: "DPAI" }, { mod: "TMS" }, { mod: "DS" }].map(({ mod }) => (
-                  <Box key={mod} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: "7px", borderBottom: "0.5px solid #F3F4F6", "&:last-child": { borderBottom: "none" } }}>
-                    <ModTag m={mod} />
-                    <Typography sx={{ fontSize: 13, color: "#9CA3AF" }}>—</Typography>
-                  </Box>
-                ))
+              : null
             }
           </Card>
           <Card>
@@ -525,7 +525,9 @@ const MyTicketsPanel = () => {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getAllTickets({ module: filterMod || undefined, severity: filterSev || undefined, status: filterStat || undefined })
+    getTicketsByClient(2)
+      .then(res => toArray(res).map(normalizeTicket))
+      .then({ module: filterMod || undefined, severity: filterSev || undefined, status: filterStat || undefined })
       .then(res => { if (active) { setAllTickets(toArray(res).map(normalizeTicket)); setLoading(false); } })
       .catch(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -581,7 +583,7 @@ const MyTicketsPanel = () => {
             ) : (
               myTickets.map((t, i) => (
                 <Box component="tr" key={t.id} onClick={() => setSelectedTicket(t)} sx={{ cursor: "pointer", "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
-                  <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{`TKT-${String(t.id).padStart(3,"0")}`}</TD>
+                  <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{`${(t.id)}`}</TD>
                   <TD><Typography sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography></TD>
                   <TD><ModTag m={t.module} /></TD>
                   <TD><SevTag sev={t.sev} /></TD>
@@ -612,68 +614,27 @@ export const RaiseIssuePanel = () => {
   const errSx    = { fontSize: 11, color: "#A32D2D", mt: 0.3 };
   const btnBase  = { px: "16px", py: "8px", borderRadius: "6px", fontSize: 13, cursor: "pointer", fontWeight: 500, fontFamily: "inherit" };
 
-  // ── AI side state ──────────────────────────────────────────────────────────
-  const EMPTY_DRAFT = { title: "", description: "", priority: "Medium", category: "" };
-  const [issueText,      setIssueText]      = useState("");
-  const [draft,          setDraft]          = useState(EMPTY_DRAFT);
-  // step: "idle" | "generating" | "draft" | "finalizing" | "final" | "submitting" | "done"
-  const [aiStep,         setAiStep]         = useState("idle");
-  const [finalTicket,    setFinalTicket]    = useState(null);
-  const [aiError,        setAiError]        = useState("");
+  // ── Dropdown data from API ─────────────────────────────────────────────────
+  const [modules,      setModules]      = useState([]);
+  const [environments, setEnvironments] = useState([]);
+  const [categories,   setCategories]   = useState([]);
+  const [severities,   setSeverities]   = useState([]);
+  const [projects,     setProjects]     = useState([]);
+  const [milestones,   setMilestones]   = useState([]);
+  const [clients,      setClients]      = useState([]);
 
-  const setDraftField = (k, v) => setDraft(d => ({ ...d, [k]: v }));
-
-  const handleGenerateDraft = async () => {
-    if (!issueText.trim()) { setAiError("Please describe your issue first."); return; }
-    setAiError(""); setAiStep("generating");
-    try {
-      const result = await generateDraft(issueText);
-      setDraft({ title: result.title, description: result.description, priority: result.priority, category: result.category });
-      setAiStep("draft");
-    } catch (err) {
-      setAiError(err?.message || "Failed to generate draft. Please try again.");
-      setAiStep("idle");
-    }
-  };
-
-  const handleFinalize = async () => {
-    if (!draft.title.trim() || !draft.description.trim()) { setAiError("Title and description are required."); return; }
-    setAiError(""); setAiStep("finalizing");
-    try {
-      const result = await finalizeTicket({ title: draft.title, description: draft.description, priority: draft.priority, category: draft.category, user_modified: true });
-      setFinalTicket(result);
-      setAiStep("final");
-    } catch (err) {
-      setAiError(err?.message || "Failed to finalize ticket. Please try again.");
-      setAiStep("draft");
-    }
-  };
-
-  const handleAiSubmit = async () => {
-    if (!finalTicket) return;
-    setAiStep("submitting");
-    try {
-      await createTicket({
-        title:       finalTicket.final_title,
-        description: finalTicket.final_description,
-        priority:    finalTicket.priority,
-        category:    finalTicket.category,
-        metadata:    finalTicket.metadata,
-      });
-      setAiStep("done");
-      setTimeout(() => { setAiStep("idle"); setIssueText(""); setDraft(EMPTY_DRAFT); setFinalTicket(null); }, 3500);
-    } catch (_) {
-      // error shown by toast via api interceptor
-      setAiStep("final");
-    }
-  };
-
-  const handleReset = () => { setAiStep("idle"); setIssueText(""); setDraft(EMPTY_DRAFT); setFinalTicket(null); setAiError(""); };
-
-  const isAiBusy = aiStep === "generating" || aiStep === "finalizing" || aiStep === "submitting";
+  useEffect(() => {
+    getAllModules().then(res => setModules(toArray(res))).catch(() => {});
+    getAllEnvironments().then(res => setEnvironments(toArray(res))).catch(() => {});
+    getAllCategories().then(res => setCategories(toArray(res))).catch(() => {});
+    getAllSeverities().then(res => setSeverities(toArray(res))).catch(() => {});
+    getAllProjects().then(res => setProjects(toArray(res))).catch(() => {});
+    getMilestones().then(res => setMilestones(toArray(res))).catch(() => {});
+    getAllClients().then(res => setClients(toArray(res))).catch(() => {});
+  }, []);
 
   // ── Manual side state ──────────────────────────────────────────────────────
-  const EMPTY_FORM = { title: "", description: "", module: "", environment: "", category: "", severity: "", project: "" };
+  const EMPTY_FORM = { title: "", description: "", module: "", environment: "", category: "", severity: "", project: "", milestone: "" };
   const [form,         setForm]         = useState(EMPTY_FORM);
   const [manSubmitted, setManSubmitted] = useState(false);
   const [manSubmitting,setManSubmitting]= useState(false);
@@ -688,7 +649,17 @@ export const RaiseIssuePanel = () => {
     if (Object.keys(newErr).length) { setErrors(newErr); return; }
     setManSubmitting(true);
     try {
-      await createTicket({ title: form.title, description: form.description, module: form.module, environment: form.environment, category: form.category, severity: form.severity, project: form.project || undefined });
+      await createTicket({
+        title: form.title,
+        description: form.description,
+        moduleId: form.module,
+        environmentId: form.environment,
+        categoryId: form.category,
+        severityId: form.severity,
+        projectId: form.project || null,
+        milestoneId: form.milestone || null,
+        clientId : form.client || null,
+      });
       setForm(EMPTY_FORM); setErrors({});
       setManSubmitted(true);
       setTimeout(() => setManSubmitted(false), 3500);
@@ -702,141 +673,9 @@ export const RaiseIssuePanel = () => {
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, height: "100%", overflow: "hidden" }}>
 
-      {/* ── LEFT: AI-assisted 2-step flow ── */}
+      {/* ── LEFT: AI triage flow ── */}
       <Box sx={{ borderRight: "1px solid #E5E7EB", pr: 3, overflowY: "auto" }}>
-        <Box sx={{ mb: 2 }}>
-          <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#111827", mb: 0.3 }}>AI-assisted ticket</Typography>
-          <Typography sx={{ fontSize: 12, color: "#9CA3AF" }}>Describe your issue — AI drafts the fields, you review and submit.</Typography>
-        </Box>
-
-        {/* Success banner */}
-        {aiStep === "done" && (
-          <Box sx={{ backgroundColor: "#EAF3DE", border: "0.5px solid #3B6D11", borderRadius: "6px", p: "10px 14px", fontSize: 13, color: "#3B6D11", mb: 2 }}>
-            Ticket submitted successfully!
-          </Box>
-        )}
-
-        {/* Error banner */}
-        {aiError && (
-          <Box sx={{ backgroundColor: "#FCEBEB", border: "0.5px solid #A32D2D", borderRadius: "6px", p: "10px 14px", fontSize: 13, color: "#A32D2D", mb: 2 }}>
-            {aiError}
-          </Box>
-        )}
-
-        {/* Step 1 — Raw input */}
-        {aiStep !== "done" && (
-          <Box sx={{ mb: 2 }}>
-            <Typography component="label" sx={labelSx}>Describe your issue</Typography>
-            <Box
-              component="textarea"
-              value={issueText}
-              onChange={e => { setIssueText(e.target.value); setAiError(""); }}
-              disabled={isAiBusy || aiStep === "final"}
-              placeholder="e.g. When I try to save a calendar entry in DPAI it returns a 400 error…"
-              sx={{ ...inputSx(false), resize: "vertical", minHeight: 90, display: "block", opacity: (isAiBusy || aiStep === "final") ? 0.6 : 1 }}
-            />
-          </Box>
-        )}
-
-        {/* Generate Draft button (step 1) */}
-        {(aiStep === "idle" || aiStep === "generating") && (
-          <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
-            <Box component="button" onClick={handleGenerateDraft} disabled={isAiBusy}
-              sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", opacity: isAiBusy ? 0.7 : 1, cursor: isAiBusy ? "not-allowed" : "pointer", "&:hover": { opacity: isAiBusy ? 0.7 : 0.9 } }}>
-              {aiStep === "generating" ? "Generating…" : "✦ Generate Draft"}
-            </Box>
-          </Box>
-        )}
-
-        {/* Step 2 — Editable draft fields */}
-        {(aiStep === "draft" || aiStep === "finalizing" || aiStep === "final" || aiStep === "submitting") && (
-          <Box sx={{ backgroundColor: "#EBF4FF", border: "0.5px solid #BFDBFE", borderRadius: "6px", p: "14px", mb: 2 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#185FA5", mb: 1.2 }}>✦ AI Draft — review &amp; edit before finalizing</Typography>
-
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.4 }}>
-              {/* Title */}
-              <Box>
-                <Typography component="label" sx={labelSx}>Title</Typography>
-                <Box component="input" value={draft.title}
-                  onChange={e => setDraftField("title", e.target.value)}
-                  disabled={aiStep === "final" || aiStep === "submitting"}
-                  sx={{ ...inputSx(false), opacity: (aiStep === "final" || aiStep === "submitting") ? 0.7 : 1 }} />
-              </Box>
-
-              {/* Description */}
-              <Box>
-                <Typography component="label" sx={labelSx}>Description</Typography>
-                <Box component="textarea" value={draft.description}
-                  onChange={e => setDraftField("description", e.target.value)}
-                  disabled={aiStep === "final" || aiStep === "submitting"}
-                  sx={{ ...inputSx(false), resize: "vertical", minHeight: 70, display: "block", opacity: (aiStep === "final" || aiStep === "submitting") ? 0.7 : 1 }} />
-              </Box>
-
-              {/* Priority + Category */}
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                <Box>
-                  <Typography component="label" sx={labelSx}>Priority</Typography>
-                  <Box component="select" value={draft.priority}
-                    onChange={e => setDraftField("priority", e.target.value)}
-                    disabled={aiStep === "final" || aiStep === "submitting"}
-                    sx={{ ...selectSx(false), opacity: (aiStep === "final" || aiStep === "submitting") ? 0.7 : 1 }}>
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                  </Box>
-                </Box>
-                <Box>
-                  <Typography component="label" sx={labelSx}>Category</Typography>
-                  <Box component="input" value={draft.category}
-                    onChange={e => setDraftField("category", e.target.value)}
-                    disabled={aiStep === "final" || aiStep === "submitting"}
-                    sx={{ ...inputSx(false), opacity: (aiStep === "final" || aiStep === "submitting") ? 0.7 : 1 }} />
-                </Box>
-              </Box>
-            </Box>
-
-            {/* Finalize button (step 2) */}
-            {(aiStep === "draft" || aiStep === "finalizing") && (
-              <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
-                <Box component="button" onClick={handleFinalize} disabled={isAiBusy}
-                  sx={{ ...btnBase, backgroundColor: "#185FA5", color: "#fff", border: "none", opacity: isAiBusy ? 0.7 : 1, cursor: isAiBusy ? "not-allowed" : "pointer", "&:hover": { opacity: isAiBusy ? 0.7 : 0.9 } }}>
-                  {aiStep === "finalizing" ? "Finalizing…" : "Finalize Ticket"}
-                </Box>
-                <Box component="button" onClick={handleReset} disabled={isAiBusy}
-                  sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
-                  Start over
-                </Box>
-              </Box>
-            )}
-          </Box>
-        )}
-
-        {/* Step 3 — Final preview + submit */}
-        {(aiStep === "final" || aiStep === "submitting") && finalTicket && (
-          <Box sx={{ backgroundColor: "#EAF3DE", border: "0.5px solid #3B6D11", borderRadius: "6px", p: "14px", mb: 2 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#3B6D11", mb: 1 }}>Ready to submit</Typography>
-            <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{finalTicket.final_title}</Typography>
-            <Typography sx={{ fontSize: 12, color: "#6B7280", mt: 0.4, mb: 1, whiteSpace: "pre-wrap" }}>{finalTicket.final_description}</Typography>
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              <Tag label={`Priority: ${finalTicket.priority}`} bg="#EBF4FF" color="#185FA5" />
-              <Tag label={`Category: ${finalTicket.category}`} bg="#F3F4F6" color="#6B7280" />
-            </Box>
-            <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
-              <Box component="button" onClick={handleAiSubmit} disabled={aiStep === "submitting"}
-                sx={{ ...btnBase, backgroundColor: "#3B6D11", color: "#fff", border: "none", opacity: aiStep === "submitting" ? 0.7 : 1, cursor: aiStep === "submitting" ? "not-allowed" : "pointer", "&:hover": { opacity: aiStep === "submitting" ? 0.7 : 0.9 } }}>
-                {aiStep === "submitting" ? "Submitting…" : "Submit Ticket"}
-              </Box>
-              <Box component="button" onClick={() => setAiStep("draft")} disabled={aiStep === "submitting"}
-                sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
-                Edit draft
-              </Box>
-              <Box component="button" onClick={handleReset} disabled={aiStep === "submitting"}
-                sx={{ ...btnBase, backgroundColor: "#fff", color: "#111827", border: "0.5px solid #D1D5DB", "&:hover": { backgroundColor: "#F9FAFB" } }}>
-                Start over
-              </Box>
-            </Box>
-          </Box>
-        )}
+        <TriageFlow />
       </Box>
 
       {/* ── RIGHT: Manual form ── */}
@@ -871,17 +710,17 @@ export const RaiseIssuePanel = () => {
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
             <Box>
               <Typography component="label" sx={labelSx}>Module <span style={{ color: "#A32D2D" }}>*</span></Typography>
-              <Box component="select" value={form.module} onChange={e => setField("module", e.target.value)} sx={selectSx(errors.module)}>
+              <Box component="select" value={form.module} onChange={e => setField("module", Number(e.target.value))} sx={selectSx(errors.module)}>
                 <option value="">Select module</option>
-                <option>DPAI</option><option>TMS</option><option>DS</option><option>EDM</option>
+                {modules.map(m => <option key={m.id} value={m.moduleId}>{m.name}</option>)}
               </Box>
               {errors.module && <Typography sx={errSx}>{errors.module}</Typography>}
             </Box>
             <Box>
               <Typography component="label" sx={labelSx}>Environment <span style={{ color: "#A32D2D" }}>*</span></Typography>
-              <Box component="select" value={form.environment} onChange={e => setField("environment", e.target.value)} sx={selectSx(errors.environment)}>
+              <Box component="select" value={form.environment} onChange={e => setField("environment", Number(e.target.value))} sx={selectSx(errors.environment)}>
                 <option value="">Select environment</option>
-                <option>Production</option><option>UAT</option><option>Staging</option><option>Dev</option>
+                {environments.map(env => <option key={env.environmentId} value={env.environmentId}>{env.name}</option>)}
               </Box>
               {errors.environment && <Typography sx={errSx}>{errors.environment}</Typography>}
             </Box>
@@ -890,29 +729,47 @@ export const RaiseIssuePanel = () => {
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
             <Box>
               <Typography component="label" sx={labelSx}>Category <span style={{ color: "#A32D2D" }}>*</span></Typography>
-              <Box component="select" value={form.category} onChange={e => setField("category", e.target.value)} sx={selectSx(errors.category)}>
+              <Box component="select" value={form.category} onChange={e => setField("category", Number(e.target.value))} sx={selectSx(errors.category)}>
                 <option value="">Select category</option>
-                <option>Environment issue</option><option>Bug</option><option>Change Request</option><option>Configuration</option><option>General</option>
+                {categories.map(c => <option key={c.categoryId} value={c.categoryId}>{c.name}</option>)}
               </Box>
               {errors.category && <Typography sx={errSx}>{errors.category}</Typography>}
             </Box>
             <Box>
               <Typography component="label" sx={labelSx}>Severity <span style={{ color: "#A32D2D" }}>*</span></Typography>
-              <Box component="select" value={form.severity} onChange={e => setField("severity", e.target.value)} sx={selectSx(errors.severity)}>
+              <Box component="select" value={form.severity} onChange={e => setField("severity", Number(e.target.value))} sx={selectSx(errors.severity)}>
                 <option value="">Select severity</option>
-                <option>Severity 1 (High)</option><option>Severity 2 (Moderate)</option><option>Severity 3 (Minor)</option>
+                {severities.map(s => <option key={s.severityId} value={s.severityId}>{s.label}</option>)}
               </Box>
               {errors.severity && <Typography sx={errSx}>{errors.severity}</Typography>}
             </Box>
           </Box>
 
-          <Box>
-            <Typography component="label" sx={labelSx}>Project</Typography>
-            <Box component="select" value={form.project} onChange={e => setField("project", e.target.value)} sx={selectSx(false)}>
-              <option value="">Select project (optional)</option>
-              <option>DPAI – Phase 2 Rollout</option><option>TMS – Configuration Upgrade</option>
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+            <Box>
+              <Typography component="label" sx={labelSx}>Project <span style={{ color: "#A32D2D" }}>*</span></Typography>
+              <Box component="select" value={form.project} onChange={e => { setField("project", Number(e.target.value)); console.log(Number(e.target.value)); }} sx={selectSx(errors.project)}>
+                <option value="">Select project</option>
+                {projects.map(p => <option key={p.projectId} value={p.projectId}>{p.title}</option>)}
+              </Box>
+              {errors.project && <Typography sx={errSx}>{errors.project}</Typography>}
+            </Box>
+            <Box>
+              <Typography component="label" sx={labelSx}>Milestone</Typography>
+              <Box component="select" value={form.milestone} onChange={e => setField("milestone", Number(e.target.value))} sx={selectSx(false)}>
+                <option value="">Select milestone</option>
+                {milestones.map(m => <option key={m.milestoneId} value={m.milestoneId}>{m.title}</option>)}
+              </Box>
             </Box>
           </Box>
+          <Box>
+              <Typography component="label" sx={labelSx}>Client <span style={{ color: "#A32D2D" }}>*</span></Typography>
+              <Box component="select" value={form.client} onChange={e => setField("client", e.target.value)} sx={selectSx(errors.client)}>
+                <option value="">Select client</option>
+                {clients.map(c => <option key={c.clientId} value={c.clientId}>{c.name}</option>)}
+              </Box>
+              {errors.client && <Typography sx={errSx}>{errors.client}</Typography>}
+            </Box>
 
           <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
             <Box component="button" onClick={handleManSubmit} disabled={manSubmitting}
@@ -1150,7 +1007,7 @@ const HomeLayout = () => {
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <Box sx={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: "#E6F1FB", color: "#185FA5", fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", border: "0.5px solid #E5E7EB" }}>C2</Box>
-          <Typography sx={{ fontSize: 13, color: "#6B7280" }}>Client 2</Typography>
+          <Typography sx={{ fontSize: 13, color: "#6B7280" }}>Client 1</Typography>
           <Box
             component="button"
             onClick={handleLogout}

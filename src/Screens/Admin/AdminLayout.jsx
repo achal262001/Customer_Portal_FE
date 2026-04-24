@@ -8,6 +8,10 @@ import {
   getAllTickets, getDashboardStats, getRecentActivities,
   getTicketsByClient, getAllClients, getAllUsers,
   getAllProjects, getTicketsByModule, getTicketsByCategory, logout,
+  getAllModules, getAllSeverities, getAllTicketStatuses,
+  getTicketsByClientDashboard, createEscalation, updateTicket,
+  getUserById,
+  getEscalationUnresolved,
 } from "../../Supportive Files/api";
 
 // ── Color tokens matching admin_ticketing_portal.html ──────────────────────
@@ -295,18 +299,18 @@ const ToastContainer = () => {
 };
 
 const normalizeAdminTicket = (t) => {
-  const sev = t.severity?.name || t.severity || "";
+  const sev = String(t.severity?.name ?? t.severity ?? "");
   const sevLabel = (sev.includes("1") || sev.toLowerCase() === "s1" || sev.toLowerCase().includes("high")) ? "S1"
     : (sev.includes("2") || sev.toLowerCase() === "s2" || sev.toLowerCase().includes("moderate")) ? "S2" : "S3";
   return {
-    id:          String(t.id),
+    id:          String(t.ticketId),
     title:       t.title || "—",
     client:      t.client?.name  || t.client  || "—",
     mod:         t.module?.name  || t.module  || "—",
     sev:         sevLabel,
     status:      t.status?.name  || t.status  || "Open",
     spoc:        t.deliverySpoc?.name || t.spoc?.name || t.spoc || "—",
-    date:        (t.createdAt || t.date || "").split("T")[0] || "—",
+    date:        (t.createdAt || t.dateOfCreation || "").split("T")[0] || "—",
     category:    t.category?.name || t.category || "—",
     environment: t.environment?.name || t.environment || "—",
     description: t.description || "",
@@ -649,8 +653,47 @@ const NAV_ITEMS = [
 ];
 
 // ── Ticket Detail Dialog ───────────────────────────────────────────────────
-const TicketDetailDialog = ({ ticket, onClose }) => {
+const TicketDetailDialog = ({ ticket, users = [], onClose }) => {
+  const [action,             setAction]             = useState(null);
+  const [reason,             setReason]             = useState("");
+  const [assignedToId,       setAssignedToId]       = useState("");
+  const [estimatedTimeHours, setEstimatedTimeHours] = useState("");
+  const [saving,             setSaving]             = useState(false);
+  const [saved,              setSaved]              = useState(false);
+
+  useEffect(() => {
+    setAction(null); setReason(""); setAssignedToId("");
+    setEstimatedTimeHours(""); setSaved(false);
+  }, [ticket?.id]);
+
   if (!ticket) return null;
+
+  const fieldSx = { width: "100%", padding: "7px 10px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, fontSize: 12, fontFamily: "inherit", color: C.text, outline: "none", background: C.bg, boxSizing: "border-box" };
+  const labelSx = { fontSize: 12, fontWeight: 500, color: C.textSecondary, display: "block", marginBottom: 4 };
+
+  const handleSave = async () => {
+    if (saving) return;
+    if (action === "escalate" && !reason.trim()) return;
+    const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+    setSaving(true);
+    try {
+      if (action === "escalate") {
+        await createEscalation({
+          ticketId:           Number(ticket.id),
+          escalatedById:      currentUser.userId,
+          assignedToId:       assignedToId ? Number(assignedToId) : undefined,
+          reason:             reason.trim(),
+          estimatedTimeHours: Number(estimatedTimeHours) || 0,
+          resolvedAt:         null,
+        });
+      } else {
+        await updateTicket(ticket.id, { statusId: 5 });
+      }
+      setSaved(true);
+      setTimeout(() => onClose(), 1800);
+    } catch (_) {}
+    setSaving(false);
+  };
 
   const DetailRow = ({ label, children }) => (
     <div style={{ display: "flex", gap: 16, padding: "10px 0", alignItems: "flex-start", borderBottom: `0.5px solid ${C.bgTertiary}` }}>
@@ -676,21 +719,15 @@ const TicketDetailDialog = ({ ticket, onClose }) => {
             </div>
             <div style={{ fontSize: 18, fontWeight: 600, color: C.text, lineHeight: 1.4 }}>{ticket.title}</div>
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: C.textSecondary, fontSize: 20, lineHeight: 1, flexShrink: 0 }}
-          >
-            ✕
-          </button>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: C.textSecondary, fontSize: 20, lineHeight: 1, flexShrink: 0 }}>✕</button>
         </div>
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
-          {/* Left column */}
+
+          {/* Left — ticket details */}
           <div style={{ paddingRight: 28, borderRight: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-              Ticket Details
-            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Ticket Details</div>
             <DetailRow label="Status"><StatBadge status={ticket.status} /></DetailRow>
             <DetailRow label="Severity"><SevBadge sev={ticket.sev} /></DetailRow>
             <DetailRow label="Client"><ClientBadge client={ticket.client} /></DetailRow>
@@ -704,29 +741,89 @@ const TicketDetailDialog = ({ ticket, onClose }) => {
             </DetailRow>
           </div>
 
-          {/* Right column */}
-          <div style={{ paddingLeft: 28 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-              Actions
+          {/* Right — actions */}
+          <div style={{ paddingLeft: 28, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em" }}>Actions</div>
+
+            {/* Toggle buttons */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn
+                variant={action === "escalate" ? "warn" : "ghost"}
+                onClick={() => setAction(a => a === "escalate" ? null : "escalate")}
+                style={{ outline: action === "escalate" ? `2px solid ${C.warn}` : "none", outlineOffset: 1 }}
+              >
+                Escalate
+              </Btn>
+              <Btn
+                variant={action === "close" ? "success" : "ghost"}
+                onClick={() => setAction(a => a === "close" ? null : "close")}
+                style={{ outline: action === "close" ? `2px solid ${C.success}` : "none", outlineOffset: 1 }}
+              >
+                Close ticket
+              </Btn>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-              <Btn variant="warn">Escalate</Btn>
-              <Btn variant="success">Close ticket</Btn>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 12, color: C.textSecondary }}>Assign to:</span>
-                <select style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, background: C.bg, color: C.text }}>
-                  <option value="">Select agent…</option>
-                  <option>Nikita K.</option><option>Ravi M.</option><option>Priya S.</option><option>Arjun T.</option>
-                </select>
+
+            {/* Escalate fields */}
+            {action === "escalate" && (
+              <>
+                <div>
+                  <label style={labelSx}>Reason <span style={{ color: C.danger }}>*</span></label>
+                  <textarea value={reason} onChange={e => setReason(e.target.value)}
+                    placeholder="Reason for escalation…"
+                    style={{ ...fieldSx, minHeight: 70, resize: "vertical" }} />
+                </div>
+                <div>
+                  <label style={labelSx}>Estimated hours</label>
+                  <input type="number" min="0" value={estimatedTimeHours}
+                    onChange={e => setEstimatedTimeHours(e.target.value)}
+                    placeholder="e.g. 4"
+                    style={fieldSx} />
+                </div>
+                <div>
+                  <label style={labelSx}>Assign to</label>
+                  <select value={assignedToId} onChange={e => setAssignedToId(e.target.value)} style={{ ...fieldSx, cursor: "pointer" }}>
+                    <option value="">Select agent…</option>
+                    {users.filter((u) => u?.role?.roleName === "Lead").map(u => (
+                      <option key={u.id} value={u.userId}>
+                        {u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username || `User ${u.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* Close ticket fields */}
+            {action === "close" && (
+              <div>
+                <label style={labelSx}>Reason (optional)</label>
+                <textarea value={reason} onChange={e => setReason(e.target.value)}
+                  placeholder="Reason for closing…"
+                  style={{ ...fieldSx, minHeight: 70, resize: "vertical" }} />
               </div>
+            )}
+
+            {/* Save button */}
+            {action && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Btn
+                  variant="primary"
+                  onClick={handleSave}
+                  style={{ opacity: saving || (action === "escalate" && !reason.trim()) ? 0.55 : 1, cursor: saving ? "not-allowed" : "pointer" }}
+                >
+                  {saving ? "Saving…" : "Save"}
+                </Btn>
+                {saved && <span style={{ fontSize: 12, color: C.success, fontWeight: 500 }}>✓ Saved successfully</span>}
+              </div>
+            )}
+
+            {/* Internal notes */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Internal Notes</div>
+              <textarea
+                placeholder="Add an internal note…"
+                style={{ ...fieldSx, minHeight: 90, fontSize: 13, resize: "vertical" }} />
             </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-              Internal Notes
-            </div>
-            <textarea
-              placeholder="Add an internal note…"
-              style={{ width: "100%", minHeight: 120, padding: "10px 12px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, fontSize: 13, fontFamily: "inherit", color: C.text, resize: "vertical", outline: "none", background: C.bg, boxSizing: "border-box" }}
-            />
           </div>
         </div>
       </div>
@@ -760,19 +857,19 @@ const DashboardSection = () => {
   const openNewTicket = useContext(NewTicketCtx);
   const { data: statsRaw,      loading: statsLoading }      = useFetch(() => getDashboardStats());
   const { data: activitiesRaw, loading: activitiesLoading } = useFetch(() => getRecentActivities());
-  const { data: clientChartRaw }                            = useFetch(() => getTicketsByClient());
+  const { data: clientChartRaw }                            = useFetch(() => getTicketsByClientDashboard());
 
   const stats          = statsRaw || {};
   const activities     = toArray(activitiesRaw);
   const clientChartApi = toArray(clientChartRaw);
 
   const metricCards = [
-    { label: "Total open tickets", val: stats.openTickets   ?? stats.totalOpen          ?? "—", valStyle: { color: C.blue },    sub: "Across 3 clients"     },
-    { label: "SLA breaches today", val: stats.slaBreachesToday ?? stats.slaBreaches     ?? "—", valStyle: { color: C.danger },  sub: "↑ 2 vs yesterday"    },
-    { label: "Avg resolution time",val: stats.avgResolution ?? stats.avgResolutionTime  ?? "—", valStyle: {},                   sub: "Target: 2.5d"        },
-    { label: "Closed this month",  val: stats.closedThisMonth                           ?? "—", valStyle: { color: C.success }, sub: "+18% vs last month"  },
-    { label: "Escalations open",   val: stats.escalationsOpen ?? stats.openEscalations  ?? "—", valStyle: { color: C.warn },   sub: "Unassigned: 1"       },
-    { label: "Team utilisation",   val: stats.teamUtilisation                           ?? "—", valStyle: {},                   sub: "4 agents active"     },
+    { label: "Total tickets", val: stats.totalTickets   ?? stats.totalOpen          ?? "0", valStyle: { color: C.blue },    sub: "Across 3 clients"     },
+    { label: "SLA breaches today", val: stats.slaBreachesToday ?? stats.slaBreaches     ?? "0", valStyle: { color: C.danger },  sub: "↑ 2 vs yesterday"    },
+    { label: "Avg resolution time",val: stats.avgResolution ?? stats.avgResolutionTime  ?? "0", valStyle: {},                   sub: "Target: 2.5d"        },
+    { label: "Closed this month",  val: stats.closedThisMonth                           ?? "0", valStyle: { color: C.success }, sub: "+18% vs last month"  },
+    { label: "Escalations open",   val: stats.escalationsOpen ?? stats.openEscalations  ?? "1", valStyle: { color: C.warn },   sub: "Unassigned: 1"       },
+    { label: "Team utilisation",   val: stats.teamUtilisation                           ?? "0", valStyle: {},                   sub: "4 agents active"     },
   ];
 
   const FALLBACK_ACTIVITY = [
@@ -877,8 +974,6 @@ const DashboardSection = () => {
 // ── ALL TICKETS SECTION ────────────────────────────────────────────────────
 const AllTicketsSection = () => {
   const openNewTicket = useContext(NewTicketCtx);
-  const [tickets,        setTickets]        = useState([]);
-  const [loading,        setLoading]        = useState(true);
   const [search,         setSearch]         = useState("");
   const [filterClient,   setFilterClient]   = useState("");
   const [filterMod,      setFilterMod]      = useState("");
@@ -888,23 +983,43 @@ const AllTicketsSection = () => {
   const [bulkVisible,    setBulkVisible]    = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
 
+  // ── Ticket grid data (same useFetch pattern as every other section) ────────
+  const { data: ticketsRaw, loading } = useFetch(
+    () => getAllTickets({ module: filterMod || undefined, severity: filterSev || undefined, status: filterStat || undefined }),
+    [filterMod, filterSev, filterStat]
+  );
+  const tickets = toArray(ticketsRaw).map(normalizeAdminTicket);
+
+  // ── Dropdown data from API ─────────────────────────────────────────────────
+  const [clients,    setClients]    = useState([]);
+  const [modules,    setModules]    = useState([]);
+  const [severities, setSeverities] = useState([]);
+  const [statuses,   setStatuses]   = useState([]);
+  const [users,      setUsers]      = useState([]);
+
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    getAllTickets({ module: filterMod || undefined, severity: filterSev || undefined, status: filterStat || undefined })
-      .then(res => { if (active) { setTickets(toArray(res).map(normalizeAdminTicket)); setLoading(false); } })
-      .catch(()  => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [filterMod, filterSev, filterStat]);
+    getAllClients().then(res => setClients(toArray(res))).catch(() => {});
+    getAllModules().then(res => setModules(toArray(res))).catch(() => {});
+    getAllSeverities().then(res => setSeverities(toArray(res))).catch(() => {});
+    getAllTicketStatuses().then(res => setStatuses(toArray(res))).catch(() => {});
+    getAllUsers().then(res => setUsers(toArray(res))).catch(() => {});
+  }, []);
+
+  const sevNameToLabel = (name = "") => {
+    const n = name.toLowerCase();
+    if (n.includes("1") || n.includes("high"))     return "S1";
+    if (n.includes("2") || n.includes("moderate")) return "S2";
+    return "S3";
+  };
 
   const filtered = tickets.filter((t) => {
     const s = search.toLowerCase();
     return (
       (!s || t.title.toLowerCase().includes(s) || t.id.toLowerCase().includes(s)) &&
-      (!filterClient || t.client === filterClient) &&
-      (!filterMod || t.mod === filterMod) &&
-      (!filterSev || t.sev === filterSev) &&
-      (!filterStat || t.status === filterStat)
+      (!filterClient || t?.projects?.client?.name === filterClient) &&
+      (!filterMod    || t.mod    === filterMod) &&
+      (!filterSev    || t.sev    === sevNameToLabel(filterSev)) &&
+      (!filterStat   || t.status === filterStat)
     );
   });
 
@@ -931,7 +1046,7 @@ const AllTicketsSection = () => {
 
   return (
     <div>
-      <TicketDetailDialog ticket={selectedTicket} onClose={() => setSelectedTicket(null)} />
+      <TicketDetailDialog ticket={selectedTicket} users={users} onClose={() => setSelectedTicket(null)} />
       <SHeader title="All tickets">
         <Btn sm ghost onClick={() => setBulkVisible(!bulkVisible)}>Bulk actions</Btn>
         <Btn sm variant="primary" onClick={openNewTicket}>+ New ticket</Btn>
@@ -947,19 +1062,19 @@ const AllTicketsSection = () => {
         />
         <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} style={selectSx}>
           <option value="">All clients</option>
-          <option>Client 1</option><option>Client 2</option><option>Client 3</option>
+          {clients.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
         <select value={filterMod} onChange={(e) => setFilterMod(e.target.value)} style={selectSx}>
           <option value="">All modules</option>
-          <option>DPAI</option><option>TMS</option><option>DS</option>
+          {modules.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
         </select>
         <select value={filterSev} onChange={(e) => setFilterSev(e.target.value)} style={selectSx}>
           <option value="">All severities</option>
-          <option>S1</option><option>S2</option><option>S3</option>
+          {severities.map(s => <option key={s.id} value={s.severityId}>{s.label}</option>)}
         </select>
         <select value={filterStat} onChange={(e) => setFilterStat(e.target.value)} style={selectSx}>
           <option value="">All statuses</option>
-          <option>Open</option><option>In Progress</option><option>Escalated</option><option>Closed</option>
+          {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
         </select>
       </div>
 
@@ -969,7 +1084,7 @@ const AllTicketsSection = () => {
           <span>{selected.size} selected</span>
           <select style={{ ...selectSx, fontSize: 12, padding: "4px 8px" }}>
             <option value="">Assign to…</option>
-            <option>Nikita K.</option><option>Ravi M.</option><option>Priya S.</option><option>Arjun T.</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
           <Btn sm variant="success">Close selected</Btn>
           <Btn sm variant="warn">Escalate</Btn>
@@ -978,7 +1093,7 @@ const AllTicketsSection = () => {
       )}
 
       {/* Table */}
-      {loading ? <Spinner /> : (
+       
       <Card style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -999,7 +1114,7 @@ const AllTicketsSection = () => {
                 >
                   <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
                     <div style={{ fontWeight: 500, fontSize: 13 }}>{t.title}</div>
-                    <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 1 }}>{t.id} · {t.date}</div>
+                    <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 1 }}>Id-{t.id} · <Date></Date>{t.date}</div>
                   </td>
                   <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><ClientBadge client={t.client} /></td>
                   <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><ModBadge mod={t.mod} /></td>
@@ -1020,7 +1135,7 @@ const AllTicketsSection = () => {
           </table>
         </div>
       </Card>
-      )}
+      
     </div>
   );
 };
@@ -1033,9 +1148,15 @@ const EscalationsSection = () => {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getAllTickets({ status: "Escalated" })
-      .then(res => { if (active) { setEscalations(toArray(res).map(normalizeAdminTicket)); setLoading(false); } })
-      .catch(()  => { if (active) setLoading(false); });
+    getEscalationUnresolved().then((res) => {
+      console.log("Escalations fetched:", res);
+      if (active) {
+        setEscalations(toArray(res));
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (active) setLoading(false);
+    });
     return () => { active = false; };
   }, []);
 
@@ -1070,8 +1191,9 @@ const EscalationsSection = () => {
                 onMouseEnter={(ev) => ev.currentTarget.style.background = C.bgSecondary}
                 onMouseLeave={(ev) => ev.currentTarget.style.background = "transparent"}
               >
+                {console.log(e)}
                 <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
-                  <div style={{ fontWeight: 500, fontSize: 13 }}>{e.title}</div>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>{e?.ticket?.title || e?.ticket}</div>
                   <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 1 }}>{e.id} · {e.mod}</div>
                 </td>
                 <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><ClientBadge client={e.client} /></td>
@@ -1104,23 +1226,14 @@ const EscalationsSection = () => {
 };
 
 // ── Client Tickets Popup ───────────────────────────────────────────────────
-const ClientTicketsPopup = ({ client, onClose }) => {
-  const [activeTicket,  setActiveTicket]  = useState(null);
-  const [clientTickets, setClientTickets] = useState([]);
-  const [loading,       setLoading]       = useState(true);
+const ClientTicketsPopup = ({ client, tickets = [], loading = false, onClose }) => {
+  const [activeTicket, setActiveTicket] = useState(null);
 
-  useEffect(() => {
-    if (!client) return;
-    let active = true;
-    setActiveTicket(null);
-    setLoading(true);
-    getAllTickets({ client: client.name })
-      .then(res => { if (active) { setClientTickets(toArray(res).map(normalizeAdminTicket)); setLoading(false); } })
-      .catch(()  => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [client?.name]);
+  useEffect(() => { setActiveTicket(null); }, [client?.id]);
 
   if (!client) return null;
+
+  const clientTickets = tickets;
 
   const DetailRow = ({ label, children }) => (
     <div style={{ display: "flex", gap: 12, padding: "9px 0", borderBottom: `0.5px solid ${C.bgTertiary}`, alignItems: "flex-start" }}>
@@ -1279,7 +1392,22 @@ const ClientTicketsPopup = ({ client, onClose }) => {
 
 // ── CLIENTS SECTION ────────────────────────────────────────────────────────
 const ClientsSection = () => {
-  const [viewClient, setViewClient] = useState(null);
+  const [viewClient,  setViewClient]  = useState(null);
+  const [viewTickets, setViewTickets] = useState([]);
+  const [viewLoading, setViewLoading] = useState(false);
+
+  const handleViewTickets = async (cl) => {
+    setViewClient(cl);
+    setViewTickets([]);
+    setViewLoading(true);
+    try {
+      const res = await getTicketsByClient(cl.id);
+      setViewTickets(toArray(res).map(normalizeAdminTicket));
+    } catch (_) {}
+    setViewLoading(false);
+  };
+
+  const closePopup = () => { setViewClient(null); setViewTickets([]); setViewLoading(false); };
   const { data: clientsRaw, loading } = useFetch(() => getAllClients());
 
   const STATIC_CLIENTS = [
@@ -1302,6 +1430,7 @@ const ClientsSection = () => {
         return {
           code:   name.slice(0, 2).toUpperCase(),
           name,
+          id:     c.id ?? c.clientId,
           since:  c.createdAt ? `Since ${c.createdAt.split("T")[0]}` : c.since || "—",
           avSx:   meta.avSx,
           health: meta.health,
@@ -1319,13 +1448,14 @@ const ClientsSection = () => {
 
   return (
     <div>
-      <ClientTicketsPopup client={viewClient} onClose={() => setViewClient(null)} />
+      <ClientTicketsPopup client={viewClient} tickets={viewTickets} loading={viewLoading} onClose={closePopup} />
       <SHeader title="Client management">
         <Btn sm variant="primary">+ Add client</Btn>
       </SHeader>
       {loading && <Spinner />}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
         {clients.map((cl) => (
+          console.log(cl),
           <div key={cl.code} style={{ background: C.bg, border: cl.border || `0.5px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1336,8 +1466,8 @@ const ClientsSection = () => {
                 </div>
               </div>
               <Badge style={{ background: cl.health.bg, color: cl.health.color }}>{cl.health.label}</Badge>
-            </div>
-            <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 6 }}>SPOC: {cl.spoc} · Modules: {cl.mods}</div>
+            </div>{console.log({cl,"spoc": cl.spoc, "mods": cl.mods})}
+            <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 6 }}>Client SPOC: {cl.spoc} · Modules: {cl.mods}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 10 }}>
               {cl.stats.map((s) => (
                 <div key={s.label} style={{ background: C.bgSecondary, borderRadius: 6, padding: 8, textAlign: "center" }}>
@@ -1347,8 +1477,8 @@ const ClientsSection = () => {
               ))}
             </div>
             <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
-              <Btn sm ghost onClick={() => setViewClient(cl)}>View tickets</Btn>
-              <Btn sm ghost>Edit</Btn>
+              <Btn sm ghost onClick={() => handleViewTickets(cl)}>View tickets</Btn>
+              {/* <Btn sm ghost>Edit</Btn> */}
             </div>
           </div>
         ))}
@@ -1359,7 +1489,7 @@ const ClientsSection = () => {
 
 // ── TEAM SECTION ───────────────────────────────────────────────────────────
 const TeamSection = () => {
-  const { data: usersRaw, loading } = useFetch(() => getAllUsers());
+  const { data: usersRaw, loading } = useFetch(() => getUserById(5));
 
   const STATIC_MEMBERS = [
     { initials: "NK", name: "Nikita K.", role: "LEAD", roleSx: { background: "#EEEDFE", color: "#3C3489" }, technicalRole: "Engineering", technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" }, stats: "12 active · Client 2 · Avg 3.1d", avSx: { background: C.blueBg, color: C.blueDark }, workload: 85, wColor: C.red, tickets: 12 },
@@ -1382,16 +1512,16 @@ const TeamSection = () => {
     ? rawUsers.map((u, i) => {
         const meta = MEMBER_META[i % MEMBER_META.length];
         const name = u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username || `User ${i + 1}`;
-        const role = u.role?.name || u.role || "SPOC";
+        const role = u.role?.roleName || u.role?.name || (typeof u.role === "string" ? u.role : "SPOC");
         const tickets = u.activeTickets ?? u.openTickets ?? 0;
         return {
           initials:      mkInitials(name),
           name,
           role,
           roleSx:        { background: "#EEEDFE", color: "#3C3489" },
-          technicalRole: u.department || u.team || "—",
+          technicalRole: (typeof u.department === "string" ? u.department : null) || (typeof u.team === "string" ? u.team : null) || "—",
           technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" },
-          stats:         `${tickets} active · ${u.client?.name || u.client || "—"} · Avg ${u.avgResolution || "—"}`,
+          stats:         `${tickets} active · ${u.client?.name || (typeof u.client === "string" ? u.client : "—")} · Avg ${u.avgResolution || "—"}`,
           avSx:          meta.avSx,
           workload:      u.workload ?? Math.min(tickets * 7, 100),
           wColor:        meta.wColor,
@@ -1417,7 +1547,7 @@ const TeamSection = () => {
                 <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{m.stats}</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <Btn sm ghost>Edit</Btn>
+                {/* <Btn sm ghost>Edit</Btn> */}
                 <Btn sm ghost>Tickets</Btn>
               </div>
             </div>
@@ -1459,7 +1589,7 @@ const TeamSection = () => {
 
 // ── ANALYTICS SECTION ──────────────────────────────────────────────────────
 const AnalyticsSection = () => {
-  const { data: clientChartRaw }   = useFetch(() => getTicketsByClient());
+  const { data: clientChartRaw }   = useFetch(() => getTicketsByClientDashboard());
   const { data: categoryChartRaw } = useFetch(() => getTicketsByCategory());
   const { data: moduleChartRaw }   = useFetch(() => getTicketsByModule());
 

@@ -47,6 +47,10 @@ export const getAllTickets = (filters = {}) => {
   return api.get("/tickets", { params });
 };
 
+export const getTicketsByClient = (clientId) => {
+  return api.get(`/tickets/by-client/${clientId}`);
+}
+
 export const getTicketById = (id) => api.get(`/tickets/${id}`);
 
 export const createTicket = (data) => api.post("/tickets", data);
@@ -71,7 +75,7 @@ export const deleteClient = (id) => api.delete(`/clients/${id}`);
 // ── Users ─────────────────────────────────────────────────
 export const getAllUsers = () => api.get("/users");
 
-export const getUserById = (id) => api.get(`/users/${id}`);
+export const getUserById = (id) => api.get(`/users/by-role/${id}`);
 
 export const getUsersByRole = (roleId) => api.get(`/users/by-role/${roleId}`);
 
@@ -90,6 +94,12 @@ export const updateCategory = (id, data) => api.put(`/categories/${id}`, data);
 
 export const deleteCategory = (id) => api.delete(`/categories/${id}`);
 
+// ── Modules ───────────────────────────────────────────────────
+export const getAllModules = () => api.get("/modules");
+
+// ── Environments ──────────────────────────────────────────────
+export const getAllEnvironments = () => api.get("/environments");
+
 // ── Projects ──────────────────────────────────────────────
 export const getAllProjects = () => api.get("/projects");
 
@@ -100,6 +110,12 @@ export const createProject = (data) => api.post("/projects", data);
 
 export const updateProject = (id, data) => api.put(`/projects/${id}`, data);
 
+export const getMilestonesByProject = (projectId) =>
+  api.get(`/projects/${projectId}/milestones`);
+
+export const getMilestones = () =>
+  api.get(`/milestones`);
+
 // ── Ticket Statuses ───────────────────────────────────────
 export const getAllTicketStatuses = () => api.get("/ticket-statuses");
 
@@ -109,6 +125,8 @@ export const getAllSeverities = () => api.get("/severities");
 // ── Escalations ───────────────────────────────────────────
 export const getEscalationsByTicket = (ticketId) =>
   api.get(`/escalations/by-ticket/${ticketId}`);
+
+export const getEscalationUnresolved = () => api.get("/escalations/unresolved");
 
 export const createEscalation = (data) => api.post("/escalations", data);
 
@@ -130,7 +148,7 @@ export const getDashboardStats = () => api.get("/dashboard/stats");
 
 export const getRecentActivities = () => api.get("/dashboard/recent-activities");
 
-export const getTicketsByClient = (params = {}) =>
+export const getTicketsByClientDashboard = (params = {}) =>
   api.get("/dashboard/charts/tickets-by-client", { params });
 
 export const getTicketsByModule = (params = {}) =>
@@ -157,6 +175,9 @@ export const generateDraft = (input_text) =>
 
 export const finalizeTicket = (fields) =>
   triageApi.post("/finalize-ticket", fields).then((r) => r.data);
+
+export const triageIssue = (input_issue) =>
+  triageApi.post("/triage", { input_issue }).then((r) => r.data);
 
 // ── Communication ─────────────────────────────────────────
 export const getCommunicationTickets = (params = {}) =>
