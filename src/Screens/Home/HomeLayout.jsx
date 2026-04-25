@@ -24,10 +24,10 @@ import { TriageFlow } from "./TriageFlow";
 const modStyle = (m = "") => {
   const u = m.toUpperCase();
   if (u === "DPAI") return { bg: "#E6F1FB", color: "#185FA5" };
-  if (u === "TMS")  return { bg: "#E1F5EE", color: "#0F6E56" };
-  if (u === "DS")   return { bg: "#EEEDFE", color: "#534AB7" };
-  if (u === "EDM")  return { bg: "#FEF3EA", color: "#854F0B" };
-  return                  { bg: "#F3F4F6", color: "#6B7280" };
+  if (u === "TMS") return { bg: "#E1F5EE", color: "#0F6E56" };
+  if (u === "DS") return { bg: "#EEEDFE", color: "#534AB7" };
+  if (u === "EDM") return { bg: "#FEF3EA", color: "#854F0B" };
+  return { bg: "#F3F4F6", color: "#6B7280" };
 };
 
 const sevStyle = (raw = "") => {
@@ -41,9 +41,9 @@ const sevStyle = (raw = "") => {
 
 const statStyle = (status = "") => {
   const s = status.toLowerCase();
-  if (s === "open")        return { bg: "#E6F1FB", color: "#185FA5" };
-  if (s === "closed")      return { bg: "#EAF3DE", color: "#3B6D11" };
-  return                          { bg: "#FAEEDA", color: "#854F0B" };
+  if (s === "open") return { bg: "#E6F1FB", color: "#185FA5" };
+  if (s === "closed") return { bg: "#EAF3DE", color: "#3B6D11" };
+  return { bg: "#FAEEDA", color: "#854F0B" };
 };
 
 // ─── Shared badge/tag ─────────────────────────────────────────────────────────
@@ -56,8 +56,8 @@ const Tag = ({ label, bg, color }) => (
     {label}
   </Box>
 );
-const ModTag  = ({ m })      => { const s = modStyle(m);   return <Tag label={m}       bg={s.bg} color={s.color} />; };
-const SevTag  = ({ sev })    => { const s = sevStyle(sev); return <Tag label={s.label} bg={s.bg} color={s.color} />; };
+const ModTag = ({ m }) => { const s = modStyle(m); return <Tag label={m} bg={s.bg} color={s.color} />; };
+const SevTag = ({ sev }) => { const s = sevStyle(sev); return <Tag label={s.label} bg={s.bg} color={s.color} />; };
 const StatTag = ({ status }) => { const s = statStyle(status); return <Tag label={status} bg={s.bg} color={s.color} />; };
 
 // ─── Shared card ─────────────────────────────────────────────────────────────
@@ -86,16 +86,16 @@ const TD = ({ children, sx = {} }) => (
 
 // ─── API utilities ────────────────────────────────────────────────────────────
 const useFetch = (apiFn, deps = []) => {
-  const [data, setData]       = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
     setLoading(true);
     apiFn()
-      .then(res  => { if (active) { setData(res);  setLoading(false); } })
-      .catch(()  => { if (active) { setLoading(false); } });
+      .then(res => { if (active) { setData(res); setLoading(false); } })
+      .catch(() => { if (active) { setLoading(false); } });
     return () => { active = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return { data, loading };
 };
@@ -107,17 +107,17 @@ const Spinner = () => (
 const normalizeTicket = (t) => {
   const sev = t.severity?.name || t.severity || t.sev || "";
   return {
-    id:     String(t.ticketId || t.id),
-    title:  t.title || "—",
-    module: t.module?.name  || t.module  || "—",
-    env:    t.environment?.name || t.environment || "—",
-    sev:    sevStyle(sev).label,
-    cat:    t.category?.name || t.category || "—",
-    status: t.status?.name  || t.status  || "Open",
-    date:   (t.createdAt || t.date || "").split("T")[0] || "—",
+    id: String(t.ticketId || t.id),
+    title: t.title || "—",
+    module: t.module?.name || t.module || "—",
+    env: t.environment?.name || t.environment || "—",
+    sev: sevStyle(sev).label,
+    cat: t.category?.name || t.category || "—",
+    status: t.status?.name || t.status || "Open",
+    date: (t.createdAt || t.date || "").split("T")[0] || "—",
     issues: t.description || t.issues || "",
-    client: t.client?.name  || t.client  || "—",
-    spoc:   t.deliverySpoc?.name || t.spoc?.name || t.spoc || "—",
+    client: t.client?.name || t.client || "—",
+    spoc: t.deliverySpoc?.name || t.spoc?.name || t.spoc || "—",
   };
 };
 
@@ -167,12 +167,12 @@ const ToastContainer = () => {
 
 // ─── KB articles ─────────────────────────────────────────────────────────────
 const KB_ARTICLES = [
-  { cat: "Environment",   catBg: "#E6F1FB", catColor: "#185FA5", title: "Fixing 400 errors on calendar save in DPAI",  desc: "Step-by-step resolution for the most common 400 errors encountered in UAT environments.", views: 142, updated: "8 Apr 2026"  },
-  { cat: "Configuration", catBg: "#EEEDFE", catColor: "#534AB7", title: "UAT environment reset checklist",              desc: "Ensure all config values are preserved after a UAT reset. Covers modules DPAI, TMS and DS.",  views: 98,  updated: "2 Apr 2026"  },
-  { cat: "Bug",           catBg: "#FCEBEB", catColor: "#A32D2D", title: "Troubleshooting SSO login redirect loops",      desc: "Common causes and fixes for SSO redirect loops in production environments.",                views: 76,  updated: "29 Mar 2026" },
-  { cat: "Change Request",catBg: "#EAF3DE", catColor: "#3B6D11", title: "How to submit a change request",               desc: "Process guide: raising, approving, and tracking change requests through the portal.",         views: 211, updated: "1 Apr 2026"  },
-  { cat: "Environment",   catBg: "#E6F1FB", catColor: "#185FA5", title: "Data sync timeouts – causes and resolutions",  desc: "Diagnose why syncs time out after 30 seconds and how to adjust config thresholds.",            views: 55,  updated: "5 Apr 2026"  },
-  { cat: "Configuration", catBg: "#EEEDFE", catColor: "#534AB7", title: "TMS workflow approval not triggering",          desc: "Covers missing trigger conditions, approval chain config, and common fallback errors.",        views: 89,  updated: "10 Apr 2026" },
+  { cat: "Environment", catBg: "#E6F1FB", catColor: "#185FA5", title: "Fixing 400 errors on calendar save in DPAI", desc: "Step-by-step resolution for the most common 400 errors encountered in UAT environments.", views: 142, updated: "8 Apr 2026" },
+  { cat: "Configuration", catBg: "#EEEDFE", catColor: "#534AB7", title: "UAT environment reset checklist", desc: "Ensure all config values are preserved after a UAT reset. Covers modules DPAI, TMS and DS.", views: 98, updated: "2 Apr 2026" },
+  { cat: "Bug", catBg: "#FCEBEB", catColor: "#A32D2D", title: "Troubleshooting SSO login redirect loops", desc: "Common causes and fixes for SSO redirect loops in production environments.", views: 76, updated: "29 Mar 2026" },
+  { cat: "Change Request", catBg: "#EAF3DE", catColor: "#3B6D11", title: "How to submit a change request", desc: "Process guide: raising, approving, and tracking change requests through the portal.", views: 211, updated: "1 Apr 2026" },
+  { cat: "Environment", catBg: "#E6F1FB", catColor: "#185FA5", title: "Data sync timeouts – causes and resolutions", desc: "Diagnose why syncs time out after 30 seconds and how to adjust config thresholds.", views: 55, updated: "5 Apr 2026" },
+  { cat: "Configuration", catBg: "#EEEDFE", catColor: "#534AB7", title: "TMS workflow approval not triggering", desc: "Covers missing trigger conditions, approval chain config, and common fallback errors.", views: 89, updated: "10 Apr 2026" },
 ];
 
 // ─── Ticket detail dialog (shared by All Tickets + My Tickets) ───────────────
@@ -283,23 +283,23 @@ const TicketDetailDialog = ({ ticket, onClose }) => {
 // PANEL 1 — DASHBOARD
 // ═════════════════════════════════════════════════════════════════════════════
 const DashboardPanel = () => {
-  const { data: statsRaw,    loading: statsLoading }    = useFetch(() => getDashboardStats());
+  const { data: statsRaw, loading: statsLoading } = useFetch(() => getDashboardStats());
   const { data: activityRaw, loading: activityLoading } = useFetch(() => getTicketActivity());
-  const { data: modulesRaw }                            = useFetch(() => getTicketsByModule());
-  const { data: ticketsRaw,  loading: ticketsLoading }  = useFetch(() => getAllTickets());
+  const { data: modulesRaw } = useFetch(() => getTicketsByModule());
+  const { data: ticketsRaw, loading: ticketsLoading } = useFetch(() => getAllTickets());
 
-  const stats        = statsRaw || {};
+  const stats = statsRaw || {};
   const ticketsByDate = toArray(activityRaw).map(d => ({
-    date:  d.date ? d.date.split("T")[0].slice(5).replace("-", " ") : d.label || d.name || "—",
+    date: d.date ? d.date.split("T")[0].slice(5).replace("-", " ") : d.label || d.name || "—",
     count: d.count ?? d.value ?? 0,
   }));
   const moduleBreakdown = toArray(modulesRaw).map(m => ({ mod: m.label || m.module, n: m.count ?? m.value ?? 0 }));
-  const recentTickets   = toArray(ticketsRaw).slice(0, 3).map(normalizeTicket);
+  const recentTickets = toArray(ticketsRaw).slice(0, 3).map(normalizeTicket);
 
   const metrics = [
-    { label: "Open issues",       value: stats.openTickets   ?? stats.totalOpen   ?? "—", sub: "Awaiting action",   valueColor: "#185FA5" },
-    { label: "Avg resolution",    value: stats.avgResolution ?? stats.avgResolutionTime ?? "—", sub: "Last 30 days", valueColor: "#111827" },
-    { label: "Closed this month", value: stats.closedThisMonth ?? "—",                    sub: "vs prior month",    valueColor: "#639922" },
+    { label: "Open issues", value: stats.openTickets ?? stats.totalOpen ?? "—", sub: "Awaiting action", valueColor: "#185FA5" },
+    { label: "Avg resolution", value: stats.avgResolution ?? stats.avgResolutionTime ?? "—", sub: "Last 30 days", valueColor: "#111827" },
+    { label: "Closed this month", value: stats.closedThisMonth ?? "—", sub: "vs prior month", valueColor: "#639922" },
   ];
 
   return (
@@ -325,8 +325,8 @@ const DashboardPanel = () => {
             <AreaChart data={ticketsByDate} margin={{ top: 4, right: 8, left: -20, bottom: 60 }}>
               <defs>
                 <linearGradient id="ticketGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#378ADD" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#378ADD" stopOpacity={0}   />
+                  <stop offset="5%" stopColor="#378ADD" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#378ADD" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
@@ -368,11 +368,11 @@ const DashboardPanel = () => {
             <CardTitle>Module breakdown</CardTitle>
             {moduleBreakdown.length > 0
               ? moduleBreakdown.map(({ mod, n }) => (
-                  <Box key={mod} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: "7px", borderBottom: "0.5px solid #F3F4F6", "&:last-child": { borderBottom: "none" } }}>
-                    <ModTag m={mod} />
-                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{n} open</Typography>
-                  </Box>
-                ))
+                <Box key={mod} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: "7px", borderBottom: "0.5px solid #F3F4F6", "&:last-child": { borderBottom: "none" } }}>
+                  <ModTag m={mod} />
+                  <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{n} open</Typography>
+                </Box>
+              ))
               : null
             }
           </Card>
@@ -423,13 +423,13 @@ const DashboardPanel = () => {
 // PANEL 2 — ALL TICKETS
 // ═════════════════════════════════════════════════════════════════════════════
 const AllTicketsPanel = () => {
-  const [search,         setSearch]         = useState("");
-  const [filterMod,      setFilterMod]      = useState("");
-  const [filterSev,      setFilterSev]      = useState("");
-  const [filterStat,     setFilterStat]     = useState("");
+  const [search, setSearch] = useState("");
+  const [filterMod, setFilterMod] = useState("");
+  const [filterSev, setFilterSev] = useState("");
+  const [filterStat, setFilterStat] = useState("");
   const [selectedTicket, setSelectedTicket] = useState(null);
-  const [allTickets,     setAllTickets]     = useState([]);
-  const [loading,        setLoading]        = useState(true);
+  const [allTickets, setAllTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -454,49 +454,49 @@ const AllTicketsPanel = () => {
           <SearchIcon sx={{ fontSize: 16, color: "#9CA3AF", flexShrink: 0 }} />
           <Box component="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tickets…" sx={{ border: "none", outline: "none", fontSize: 13, color: "#111827", background: "transparent", width: "100%", fontFamily: "inherit" }} />
         </Box>
-        <Box component="select" value={filterMod}  onChange={e => setFilterMod(e.target.value)}  sx={selSx}>
+        <Box component="select" value={filterMod} onChange={e => setFilterMod(e.target.value)} sx={selSx}>
           <option value="">All modules</option>
-          {["DPAI","TMS","DS","EDM"].map(m => <option key={m}>{m}</option>)}
+          {["DPAI", "TMS", "DS", "EDM"].map(m => <option key={m}>{m}</option>)}
         </Box>
-        <Box component="select" value={filterSev}  onChange={e => setFilterSev(e.target.value)}  sx={selSx}>
+        <Box component="select" value={filterSev} onChange={e => setFilterSev(e.target.value)} sx={selSx}>
           <option value="">All severities</option>
-          {["S1","S2","S3"].map(s => <option key={s}>{s}</option>)}
+          {["S1", "S2", "S3"].map(s => <option key={s}>{s}</option>)}
         </Box>
         <Box component="select" value={filterStat} onChange={e => setFilterStat(e.target.value)} sx={selSx}>
           <option value="">All statuses</option>
-          {["Open","In Progress","Closed"].map(s => <option key={s}>{s}</option>)}
+          {["Open", "In Progress", "Closed"].map(s => <option key={s}>{s}</option>)}
         </Box>
       </Box>
 
       {loading ? <Spinner /> : (
-      <Card sx={{ overflowX: "auto" }}>
-        <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
-          <Box component="thead">
-            <Box component="tr">
-              {["Id","Title","Date","Module","Env","Severity","Category","Status"].map(h => <TH key={h}>{h}</TH>)}
+        <Card sx={{ overflowX: "auto" }}>
+          <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
+            <Box component="thead">
+              <Box component="tr">
+                {["Id", "Title", "Date", "Module", "Env", "Severity", "Category", "Status"].map(h => <TH key={h}>{h}</TH>)}
+              </Box>
+            </Box>
+            <Box component="tbody">
+              {filtered.map(t => (
+                <Box component="tr" key={t.id} onClick={() => setSelectedTicket(t)} sx={{ cursor: "pointer", "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
+                  <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{t.id}</TD>
+                  <TD sx={{ minWidth: 200 }}>
+                    <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography>
+                  </TD>
+                  <TD sx={{ color: "#9CA3AF", fontSize: 12, whiteSpace: "nowrap" }}>{t.date}</TD>
+                  <TD><ModTag m={t.module} /></TD>
+                  <TD sx={{ color: "#6B7280" }}>{t.env}</TD>
+                  <TD><SevTag sev={t.sev} /></TD>
+                  <TD sx={{ color: "#6B7280", fontSize: 12 }}>{t.cat}</TD>
+                  <TD><StatTag status={t.status} /></TD>
+                </Box>
+              ))}
             </Box>
           </Box>
-          <Box component="tbody">
-            {filtered.map(t => (
-              <Box component="tr" key={t.id} onClick={() => setSelectedTicket(t)} sx={{ cursor: "pointer", "&:hover td": { backgroundColor: "#F9FAFB" }, "&:last-child td": { borderBottom: "none" } }}>
-                <TD sx={{ color: "#9CA3AF", fontSize: 12 }}>{t.id}</TD>
-                <TD sx={{ minWidth: 200 }}>
-                  <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography>
-                </TD>
-                <TD sx={{ color: "#9CA3AF", fontSize: 12, whiteSpace: "nowrap" }}>{t.date}</TD>
-                <TD><ModTag m={t.module} /></TD>
-                <TD sx={{ color: "#6B7280" }}>{t.env}</TD>
-                <TD><SevTag sev={t.sev} /></TD>
-                <TD sx={{ color: "#6B7280", fontSize: 12 }}>{t.cat}</TD>
-                <TD><StatTag status={t.status} /></TD>
-              </Box>
-            ))}
-          </Box>
-        </Box>
-        {filtered.length === 0 && (
-          <Box sx={{ textAlign: "center", py: 6, color: "#9CA3AF", fontSize: 14 }}>No tickets match your filters</Box>
-        )}
-      </Card>
+          {filtered.length === 0 && (
+            <Box sx={{ textAlign: "center", py: 6, color: "#9CA3AF", fontSize: 14 }}>No tickets match your filters</Box>
+          )}
+        </Card>
       )}
     </Box>
   );
@@ -507,12 +507,12 @@ const AllTicketsPanel = () => {
 // ═════════════════════════════════════════════════════════════════════════════
 const MyTicketsPanel = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
-  const [search,     setSearch]     = useState("");
-  const [filterMod,  setFilterMod]  = useState("");
-  const [filterSev,  setFilterSev]  = useState("");
+  const [search, setSearch] = useState("");
+  const [filterMod, setFilterMod] = useState("");
+  const [filterSev, setFilterSev] = useState("");
   const [filterStat, setFilterStat] = useState("");
   const [allTickets, setAllTickets] = useState([]);
-  const [loading,    setLoading]    = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const lastUpdates = ["2h ago", "Yesterday", "3d ago", "1d ago", "5h ago", "4h ago", "6d ago", "3h ago", "2d ago", "1h ago"];
 
@@ -536,9 +536,9 @@ const MyTicketsPanel = () => {
   const myTickets = allTickets
     .filter(t => t.status !== "Closed")
     .filter(t =>
-      (!search    || t.title.toLowerCase().includes(search.toLowerCase()) || String(t.id).includes(search)) &&
-      (!filterMod  || t.module === filterMod) &&
-      (!filterSev  || t.sev    === filterSev) &&
+      (!search || t.title.toLowerCase().includes(search.toLowerCase()) || String(t.id).includes(search)) &&
+      (!filterMod || t.module === filterMod) &&
+      (!filterSev || t.sev === filterSev) &&
       (!filterStat || t.status === filterStat)
     );
 
@@ -554,15 +554,15 @@ const MyTicketsPanel = () => {
         </Box>
         <Box component="select" value={filterMod} onChange={e => setFilterMod(e.target.value)} sx={selSx}>
           <option value="">All modules</option>
-          {["DPAI","DS","TMS"].map(m => <option key={m}>{m}</option>)}
+          {["DPAI", "DS", "TMS"].map(m => <option key={m}>{m}</option>)}
         </Box>
         <Box component="select" value={filterSev} onChange={e => setFilterSev(e.target.value)} sx={selSx}>
           <option value="">All severities</option>
-          {["S1","S2","S3"].map(s => <option key={s}>{s}</option>)}
+          {["S1", "S2", "S3"].map(s => <option key={s}>{s}</option>)}
         </Box>
         <Box component="select" value={filterStat} onChange={e => setFilterStat(e.target.value)} sx={selSx}>
           <option value="">All statuses</option>
-          {["Open","In Progress"].map(s => <option key={s}>{s}</option>)}
+          {["Open", "In Progress"].map(s => <option key={s}>{s}</option>)}
         </Box>
       </Box>
 
@@ -570,7 +570,7 @@ const MyTicketsPanel = () => {
         <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
           <Box component="thead">
             <Box component="tr">
-              {["ID","Title","Module","Severity","Status","Last update"].map(h => <TH key={h}>{h}</TH>)}
+              {["ID", "Title", "Module", "Severity", "Status", "Last update"].map(h => <TH key={h}>{h}</TH>)}
             </Box>
           </Box>
           <Box component="tbody">
@@ -610,35 +610,35 @@ export const RaiseIssuePanel = () => {
     "&:focus": { borderColor: "#185FA5" },
   });
   const selectSx = (err) => ({ ...inputSx(err), appearance: "auto", cursor: "pointer", height: 36 });
-  const labelSx  = { fontSize: 12, fontWeight: 500, color: "#374151", mb: 0.4, display: "block" };
-  const errSx    = { fontSize: 11, color: "#A32D2D", mt: 0.3 };
-  const btnBase  = { px: "16px", py: "8px", borderRadius: "6px", fontSize: 13, cursor: "pointer", fontWeight: 500, fontFamily: "inherit" };
+  const labelSx = { fontSize: 12, fontWeight: 500, color: "#374151", mb: 0.4, display: "block" };
+  const errSx = { fontSize: 11, color: "#A32D2D", mt: 0.3 };
+  const btnBase = { px: "16px", py: "8px", borderRadius: "6px", fontSize: 13, cursor: "pointer", fontWeight: 500, fontFamily: "inherit" };
 
   // ── Dropdown data from API ─────────────────────────────────────────────────
-  const [modules,      setModules]      = useState([]);
+  const [modules, setModules] = useState([]);
   const [environments, setEnvironments] = useState([]);
-  const [categories,   setCategories]   = useState([]);
-  const [severities,   setSeverities]   = useState([]);
-  const [projects,     setProjects]     = useState([]);
-  const [milestones,   setMilestones]   = useState([]);
-  const [clients,      setClients]      = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [severities, setSeverities] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [milestones, setMilestones] = useState([]);
+  const [clients, setClients] = useState([]);
 
   useEffect(() => {
-    getAllModules().then(res => setModules(toArray(res))).catch(() => {});
-    getAllEnvironments().then(res => setEnvironments(toArray(res))).catch(() => {});
-    getAllCategories().then(res => setCategories(toArray(res))).catch(() => {});
-    getAllSeverities().then(res => setSeverities(toArray(res))).catch(() => {});
-    getAllProjects().then(res => setProjects(toArray(res))).catch(() => {});
-    getMilestones().then(res => setMilestones(toArray(res))).catch(() => {});
-    getAllClients().then(res => setClients(toArray(res))).catch(() => {});
+    getAllModules().then(res => setModules(toArray(res))).catch(() => { });
+    getAllEnvironments().then(res => setEnvironments(toArray(res))).catch(() => { });
+    getAllCategories().then(res => setCategories(toArray(res))).catch(() => { });
+    getAllSeverities().then(res => setSeverities(toArray(res))).catch(() => { });
+    getAllProjects().then(res => setProjects(toArray(res))).catch(() => { });
+    getMilestones().then(res => setMilestones(toArray(res))).catch(() => { });
+    getAllClients().then(res => setClients(toArray(res))).catch(() => { });
   }, []);
 
   // ── Manual side state ──────────────────────────────────────────────────────
   const EMPTY_FORM = { title: "", description: "", module: "", environment: "", category: "", severity: "", project: "", milestone: "" };
-  const [form,         setForm]         = useState(EMPTY_FORM);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [manSubmitted, setManSubmitted] = useState(false);
-  const [manSubmitting,setManSubmitting]= useState(false);
-  const [errors,       setErrors]       = useState({});
+  const [manSubmitting, setManSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const setField = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
 
@@ -658,7 +658,7 @@ export const RaiseIssuePanel = () => {
         severityId: form.severity,
         projectId: form.project || null,
         milestoneId: form.milestone || null,
-        clientId : form.client || null,
+        clientId: form.client || null,
       });
       setForm(EMPTY_FORM); setErrors({});
       setManSubmitted(true);
@@ -763,13 +763,13 @@ export const RaiseIssuePanel = () => {
             </Box>
           </Box>
           <Box>
-              <Typography component="label" sx={labelSx}>Client <span style={{ color: "#A32D2D" }}>*</span></Typography>
-              <Box component="select" value={form.client} onChange={e => setField("client", e.target.value)} sx={selectSx(errors.client)}>
-                <option value="">Select client</option>
-                {clients.map(c => <option key={c.clientId} value={c.clientId}>{c.name}</option>)}
-              </Box>
-              {errors.client && <Typography sx={errSx}>{errors.client}</Typography>}
+            <Typography component="label" sx={labelSx}>Client <span style={{ color: "#A32D2D" }}>*</span></Typography>
+            <Box component="select" value={form.client} onChange={e => setField("client", e.target.value)} sx={selectSx(errors.client)}>
+              <option value="">Select client</option>
+              {clients.map(c => <option key={c.clientId} value={c.clientId}>{c.name}</option>)}
             </Box>
+            {errors.client && <Typography sx={errSx}>{errors.client}</Typography>}
+          </Box>
 
           <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
             <Box component="button" onClick={handleManSubmit} disabled={manSubmitting}
@@ -791,10 +791,10 @@ export const RaiseIssuePanel = () => {
 // ═════════════════════════════════════════════════════════════════════════════
 // PANEL 5 — ANALYTICS
 // ═════════════════════════════════════════════════════════════════════════════
-const STATIC_MONTHLY    = [{ month: "Sep", count: 3 }, { month: "Oct", count: 5 }, { month: "Nov", count: 4 }, { month: "Dec", count: 6 }, { month: "Jan", count: 3 }, { month: "Feb", count: 2 }, { month: "Mar", count: 1 }, { month: "Apr", count: 2 }];
+const STATIC_MONTHLY = [{ month: "Sep", count: 3 }, { month: "Oct", count: 5 }, { month: "Nov", count: 4 }, { month: "Dec", count: 6 }, { month: "Jan", count: 3 }, { month: "Feb", count: 2 }, { month: "Mar", count: 1 }, { month: "Apr", count: 2 }];
 const STATIC_CATEGORIES = [{ name: "Environment issue", value: 33 }, { name: "Bug / Code defect", value: 25 }, { name: "Config gap", value: 20 }, { name: "Other", value: 22 }];
-const CAT_COLORS        = ["#378ADD", "#EF9F27", "#639922", "#D4537E"];
-const STATIC_SEV_DIST   = [{ name: "S1", count: 8, fill: "#E24B4A" }, { name: "S2", count: 6, fill: "#EF9F27" }, { name: "S3", count: 3, fill: "#639922" }];
+const CAT_COLORS = ["#378ADD", "#EF9F27", "#639922", "#D4537E"];
+const STATIC_SEV_DIST = [{ name: "S1", count: 8, fill: "#E24B4A" }, { name: "S2", count: 6, fill: "#EF9F27" }, { name: "S3", count: 3, fill: "#639922" }];
 
 const AnalyticsPanel = () => {
   const { data: activityRaw } = useFetch(() => getTicketActivity());
@@ -805,87 +805,87 @@ const AnalyticsPanel = () => {
 
   const monthlyData = rawActivity.length > 0
     ? rawActivity.map(d => ({
-        month: d.date ? d.date.split("T")[0].slice(5).replace("-", " ") : d.label || d.name || "—",
-        count: d.count ?? d.value ?? 0,
-      }))
+      month: d.date ? d.date.split("T")[0].slice(5).replace("-", " ") : d.label || d.name || "—",
+      count: d.count ?? d.value ?? 0,
+    }))
     : STATIC_MONTHLY;
 
-  const totalCatVal  = rawCategory.reduce((s, d) => s + (d.count ?? d.value ?? 0), 0) || 1;
+  const totalCatVal = rawCategory.reduce((s, d) => s + (d.count ?? d.value ?? 0), 0) || 1;
   const categoryData = rawCategory.length > 0
     ? rawCategory.map(d => ({ name: d.name || d.category || "—", value: Math.round(((d.count ?? d.value ?? 0) / totalCatVal) * 100) }))
     : STATIC_CATEGORIES;
 
   return (
-  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
-    {/* Tickets by month */}
-    <Card>
-      <CardTitle>Tickets by month</CardTitle>
-      <ResponsiveContainer width="100%" height={150}>
-        <BarChart data={monthlyData} barSize={22} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)", fontSize: 12 }} />
-          <Bar dataKey="count" fill="#378ADD" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </Card>
+    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+      {/* Tickets by month */}
+      <Card>
+        <CardTitle>Tickets by month</CardTitle>
+        <ResponsiveContainer width="100%" height={150}>
+          <BarChart data={monthlyData} barSize={22} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)", fontSize: 12 }} />
+            <Bar dataKey="count" fill="#378ADD" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
 
-    {/* Category breakdown */}
-    <Card>
-      <CardTitle>Category breakdown</CardTitle>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-        <Box sx={{ flexShrink: 0 }}>
-          <PieChart width={90} height={90}>
-            <Pie data={categoryData} cx={45} cy={45} innerRadius={26} outerRadius={42} paddingAngle={2} dataKey="value">
-              {categoryData.map((_, i) => <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />)}
-            </Pie>
-          </PieChart>
-        </Box>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.8 }}>
-          {categoryData.map((c, i) => (
-            <Box key={c.name} sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-              <Box sx={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: CAT_COLORS[i % CAT_COLORS.length], flexShrink: 0 }} />
-              <Typography sx={{ fontSize: 12 }}>{c.name} ({c.value}%)</Typography>
-            </Box>
-          ))}
-        </Box>
-      </Box>
-    </Card>
-
-    {/* Severity distribution */}
-    <Card>
-      <CardTitle>Severity distribution</CardTitle>
-      <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.5, height: 120, mb: 1 }}>
-        {STATIC_SEV_DIST.map(s => {
-          const maxVal = Math.max(...STATIC_SEV_DIST.map(x => x.count));
-          return (
-            <Box key={s.name} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, height: "100%" }}>
-              <Typography sx={{ fontSize: 11, fontWeight: 500 }}>{s.count}</Typography>
-              <Box sx={{ flex: 1, width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-                <Box sx={{ height: `${(s.count / maxVal) * 100}%`, backgroundColor: s.fill, borderRadius: "4px 4px 0 0" }} />
+      {/* Category breakdown */}
+      <Card>
+        <CardTitle>Category breakdown</CardTitle>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Box sx={{ flexShrink: 0 }}>
+            <PieChart width={90} height={90}>
+              <Pie data={categoryData} cx={45} cy={45} innerRadius={26} outerRadius={42} paddingAngle={2} dataKey="value">
+                {categoryData.map((_, i) => <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />)}
+              </Pie>
+            </PieChart>
+          </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.8 }}>
+            {categoryData.map((c, i) => (
+              <Box key={c.name} sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                <Box sx={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: CAT_COLORS[i % CAT_COLORS.length], flexShrink: 0 }} />
+                <Typography sx={{ fontSize: 12 }}>{c.name} ({c.value}%)</Typography>
               </Box>
-              <Typography sx={{ fontSize: 11, color: "#6B7280" }}>{s.name}</Typography>
-            </Box>
-          );
-        })}
-      </Box>
-    </Card>
+            ))}
+          </Box>
+        </Box>
+      </Card>
 
-    {/* Avg resolution time */}
-    <Card>
-      <CardTitle>Avg resolution time (days)</CardTitle>
-      <ResponsiveContainer width="100%" height={150}>
-        <BarChart data={[{ month: "Oct", days: 1.8 }, { month: "Nov", days: 2.4 }, { month: "Dec", days: 3.4 }, { month: "Jan", days: 2.9 }]} barSize={22} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)", fontSize: 12 }} />
-          <Bar dataKey="days" fill="#378ADD" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </Card>
-  </Box>
+      {/* Severity distribution */}
+      <Card>
+        <CardTitle>Severity distribution</CardTitle>
+        <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.5, height: 120, mb: 1 }}>
+          {STATIC_SEV_DIST.map(s => {
+            const maxVal = Math.max(...STATIC_SEV_DIST.map(x => x.count));
+            return (
+              <Box key={s.name} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, height: "100%" }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 500 }}>{s.count}</Typography>
+                <Box sx={{ flex: 1, width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                  <Box sx={{ height: `${(s.count / maxVal) * 100}%`, backgroundColor: s.fill, borderRadius: "4px 4px 0 0" }} />
+                </Box>
+                <Typography sx={{ fontSize: 11, color: "#6B7280" }}>{s.name}</Typography>
+              </Box>
+            );
+          })}
+        </Box>
+      </Card>
+
+      {/* Avg resolution time */}
+      <Card>
+        <CardTitle>Avg resolution time (days)</CardTitle>
+        <ResponsiveContainer width="100%" height={150}>
+          <BarChart data={[{ month: "Oct", days: 1.8 }, { month: "Nov", days: 2.4 }, { month: "Dec", days: 3.4 }, { month: "Jan", days: 2.9 }]} barSize={22} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgba(0,0,0,.1)", fontSize: 12 }} />
+            <Bar dataKey="days" fill="#378ADD" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
+    </Box>
   );
 };
 
@@ -894,32 +894,32 @@ const AnalyticsPanel = () => {
 // ═════════════════════════════════════════════════════════════════════════════
 const PROJECTS = [
   {
-    name:       "DPAI – Phase 2 Rollout",
-    meta:       "Client 2 · SPOC: Nikita K. · Due: 28 Feb 2026",
-    statusLabel:"In progress",
-    statusBg:   "#FAEEDA", statusColor: "#854F0B",
-    pct:        68,
-    info:       "68% complete · 3 milestones remaining",
+    name: "DPAI – Phase 2 Rollout",
+    meta: "Client 2 · SPOC: Nikita K. · Due: 28 Feb 2026",
+    statusLabel: "In progress",
+    statusBg: "#FAEEDA", statusColor: "#854F0B",
+    pct: 68,
+    info: "68% complete · 3 milestones remaining",
     milestones: [
-      { label: "Requirements sign-off",    state: "done",    note: "Completed"  },
-      { label: "UAT environment setup",    state: "done",    note: "Completed"  },
-      { label: "Integration testing",      state: "active",  note: "In progress"},
-      { label: "User acceptance sign-off", state: "pending", note: "Pending"    },
-      { label: "Prod go-live",             state: "pending", note: "Pending"    },
+      { label: "Requirements sign-off", state: "done", note: "Completed" },
+      { label: "UAT environment setup", state: "done", note: "Completed" },
+      { label: "Integration testing", state: "active", note: "In progress" },
+      { label: "User acceptance sign-off", state: "pending", note: "Pending" },
+      { label: "Prod go-live", state: "pending", note: "Pending" },
     ],
     summary: "✦ Auto-summary: Integration testing delayed due to 3 open environment tickets. Resolution target: 20 Apr 2026.",
   },
   {
-    name:       "TMS – Configuration Upgrade",
-    meta:       "Client 2 · SPOC: Nikita K. · Due: 15 May 2026",
-    statusLabel:"Planned",
-    statusBg:   "#E6F1FB", statusColor: "#185FA5",
-    pct:        22,
-    info:       "22% complete · Kickoff done",
+    name: "TMS – Configuration Upgrade",
+    meta: "Client 2 · SPOC: Nikita K. · Due: 15 May 2026",
+    statusLabel: "Planned",
+    statusBg: "#E6F1FB", statusColor: "#185FA5",
+    pct: 22,
+    info: "22% complete · Kickoff done",
     milestones: [
-      { label: "Kickoff & scoping",     state: "done",    note: "Completed"  },
-      { label: "Design & architecture", state: "active",  note: "In progress"},
-      { label: "Build & configure",     state: "pending", note: "Pending"    },
+      { label: "Kickoff & scoping", state: "done", note: "Completed" },
+      { label: "Design & architecture", state: "active", note: "In progress" },
+      { label: "Build & configure", state: "pending", note: "Pending" },
     ],
     summary: null,
   },
@@ -965,21 +965,21 @@ const ProjectsPanel = () => (
 // MAIN LAYOUT
 // ═════════════════════════════════════════════════════════════════════════════
 const TABS = [
-  { key: "dashboard",  label: "Dashboard"      },
+  { key: "dashboard", label: "Dashboard" },
   // { key: "alltickets", label: "All tickets"     },
-  { key: "mytickets",  label: "My tickets"      },
-  { key: "raise",      label: "Raise a Ticket"  },
-  { key: "analytics",  label: "Analytics"       },
-  { key: "projects",   label: "Projects"        },
+  { key: "mytickets", label: "My tickets" },
+  { key: "raise", label: "Raise a Ticket" },
+  { key: "analytics", label: "Analytics" },
+  { key: "projects", label: "Projects" },
 ];
 
 const PANELS = {
-  dashboard:  <DashboardPanel />,
+  dashboard: <DashboardPanel />,
   // alltickets: <AllTicketsPanel />,
-  mytickets:  <MyTicketsPanel />,
-  raise:      <RaiseIssuePanel />,
-  analytics:  <AnalyticsPanel />,
-  projects:   <ProjectsPanel />,
+  mytickets: <MyTicketsPanel />,
+  raise: <RaiseIssuePanel />,
+  analytics: <AnalyticsPanel />,
+  projects: <ProjectsPanel />,
 };
 
 const HomeLayout = () => {
@@ -987,7 +987,7 @@ const HomeLayout = () => {
   const navigate = useNavigate();
 
   const handleLogout = useCallback(async () => {
-    try { await logout(); } catch (_) {}
+    try { await logout(); } catch (_) { }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login");
@@ -1045,10 +1045,10 @@ const HomeLayout = () => {
             onClick={() => setActiveTab(tab.key)}
             sx={{
               px: "14px", py: "10px", fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
-              color:       activeTab === tab.key ? "#185FA5" : "#6B7280",
+              color: activeTab === tab.key ? "#185FA5" : "#6B7280",
               borderBottom: activeTab === tab.key ? "2px solid #185FA5" : "2px solid transparent",
-              fontWeight:  activeTab === tab.key ? 500 : 400,
-              transition:  "color .15s",
+              fontWeight: activeTab === tab.key ? 500 : 400,
+              transition: "color .15s",
               "&:hover": { color: activeTab === tab.key ? "#185FA5" : "#111827" },
             }}
           >

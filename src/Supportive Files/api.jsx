@@ -192,3 +192,10 @@ export const sendTicketMessage = (ticketId, data) =>
 export const getNotifications = () => api.get("/communication/notifications");
 
 export default api;
+
+// Teams 
+export const getAllTeams = () => api.get("/teams");
+
+export const AssignTeamToTicket = (teamId, ticketId) => api.post(`/teams/${teamId}/tickets/${ticketId}`, { teamId });
+
+export const getTicketsByTeam = (teamId) => api.get(`/teams/${teamId}/tickets`);

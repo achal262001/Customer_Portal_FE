@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, createContext, useContext } from "rea
 import { useNavigate } from "react-router-dom";
 import { RaiseIssuePanel } from "../Home/HomeLayout";
 
-const NewTicketCtx = createContext(() => {});
+const NewTicketCtx = createContext(() => { });
 import {
   getAllTickets, getDashboardStats, getRecentActivities,
   getTicketsByClient, getAllClients, getAllUsers,
@@ -12,6 +12,9 @@ import {
   getTicketsByClientDashboard, createEscalation, updateTicket,
   getUserById,
   getEscalationUnresolved,
+  getAllTeams,
+  AssignTeamToTicket,
+  getTicketsByTeam,
 } from "../../Supportive Files/api";
 
 // ── Color tokens matching admin_ticketing_portal.html ──────────────────────
@@ -235,16 +238,16 @@ const SlaTrack = ({ pct, severity }) => {
 
 // ── API utilities ──────────────────────────────────────────────────────────
 const useFetch = (apiFn, deps = []) => {
-  const [data, setData]       = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
     setLoading(true);
     apiFn()
-      .then(res  => { if (active) { setData(res);  setLoading(false); } })
-      .catch(()  => { if (active) { setLoading(false); } });
+      .then(res => { if (active) { setData(res); setLoading(false); } })
+      .catch(() => { if (active) { setLoading(false); } });
     return () => { active = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return { data, loading };
 };
@@ -303,15 +306,15 @@ const normalizeAdminTicket = (t) => {
   const sevLabel = (sev.includes("1") || sev.toLowerCase() === "s1" || sev.toLowerCase().includes("high")) ? "S1"
     : (sev.includes("2") || sev.toLowerCase() === "s2" || sev.toLowerCase().includes("moderate")) ? "S2" : "S3";
   return {
-    id:          String(t.ticketId),
-    title:       t.title || "—",
-    client:      t.client?.name  || t.client  || "—",
-    mod:         t.module?.name  || t.module  || "—",
-    sev:         sevLabel,
-    status:      t.status?.name  || t.status  || "Open",
-    spoc:        t.deliverySpoc?.name || t.spoc?.name || t.spoc || "—",
-    date:        (t.createdAt || t.dateOfCreation || "").split("T")[0] || "—",
-    category:    t.category?.name || t.category || "—",
+    id: String(t.ticketId),
+    title: t.title || "—",
+    client: t.client?.name || t.client || "—",
+    mod: t.module?.name || t.module || "—",
+    sev: sevLabel,
+    status: t.status?.name || t.status || "Open",
+    spoc: t.deliverySpoc?.name || t.spoc?.name || t.spoc || "—",
+    date: (t.createdAt || t.dateOfCreation || "").split("T")[0] || "—",
+    category: t.category?.name || t.category || "—",
     environment: t.environment?.name || t.environment || "—",
     description: t.description || "",
   };
@@ -319,7 +322,7 @@ const normalizeAdminTicket = (t) => {
 
 // ── Admin ticket data ──────────────────────────────────────────────────────
 const ADMIN_TICKETS = [
-  { 
+  {
     id: "TKT-01",
     description: "While configuring a calendar the system does not allow saving and returns status code: 400",
     title: "Calendar Save Fails with 400 Error",
@@ -332,7 +335,7 @@ const ADMIN_TICKETS = [
     category: "Environment issue",
     environment: "UAT"
   },
-  { 
+  {
     id: "TKT-02",
     description: "Getting error while performing complete loading in TMS",
     title: "Multi-issue rollup",
@@ -345,7 +348,7 @@ const ADMIN_TICKETS = [
     category: "Bug (Code defect)",
     environment: "Prod"
   },
-  { 
+  {
     id: "TKT-03",
     description: "The forecast with trigger date as 09-10-2025 isn’t generated yet and the status remains 'Forecast in Progress'.",
     title: "Incorrect Data after Migration",
@@ -358,7 +361,7 @@ const ADMIN_TICKETS = [
     category: "Environment issue",
     environment: "Prod"
   },
-  { 
+  {
     id: "TKT-04",
     description: "Route Re Sync button has bug, routes are reflecting even when not maintained in Route Master",
     title: "Workflow approval not triggering",
@@ -371,7 +374,7 @@ const ADMIN_TICKETS = [
     category: "Bug (Code defect)",
     environment: "Prod"
   },
-  { 
+  {
     id: "TKT-05",
     description: "When attempting to download the forecast from the grid, the system displays 'Download Failed, Please Try Again'.",
     title: "Report export fails silently",
@@ -384,7 +387,7 @@ const ADMIN_TICKETS = [
     category: "Configuration gap",
     environment: "UAT"
   },
-  { 
+  {
     id: "TKT-06",
     description: "On Prod platform, the forecast has generated successfully but on UI it is not visible",
     title: "Login redirect loop on SSO",
@@ -397,7 +400,7 @@ const ADMIN_TICKETS = [
     category: "Other",
     environment: "Prod"
   },
-  { 
+  {
     id: "TKT-07",
     description: "Abnormal spike in forecast values for the last two horizons.",
     title: "Data sync timeout after 30s",
@@ -410,7 +413,7 @@ const ADMIN_TICKETS = [
     category: "Bug (Code defect)",
     environment: "Prod"
   },
-  { 
+  {
     id: "TKT-08",
     description: "The forecast status is showing as 'In Progress' even though the SNOP was successfully created.",
     title: "Config missing after UAT reset",
@@ -423,7 +426,7 @@ const ADMIN_TICKETS = [
     category: "Other",
     environment: "UAT"
   },
-  { 
+  {
     id: "TKT-09",
     description: "Route Re Sync button has bug, routes are reflecting even when not maintained in Route Master",
     title: "Notification email not sent",
@@ -436,7 +439,7 @@ const ADMIN_TICKETS = [
     category: "Bug (Code defect)",
     environment: "Prod"
   },
-  { 
+  {
     id: "TKT-10",
     description: "While downloading the Mapping Master, the Quantity UOM column shows 'N/A'.",
     title: "UI alignment broken on mobile",
@@ -449,7 +452,7 @@ const ADMIN_TICKETS = [
     category: "Bug (Code defect)",
     environment: "Prod"
   },
-  { 
+  {
     id: "TKT-11",
     description: "While uploading the Personnel Master file in EDM, a 'Network Error' is displayed and upload fails",
     title: "API timeout on bulk operations",
@@ -462,7 +465,7 @@ const ADMIN_TICKETS = [
     category: "Other",
     environment: "Prod"
   },
-  { 
+  {
     id: "TKT-12",
     description: "File downloaded from EDM is having duplicate records though no duplicates were uploaded",
     title: "Duplicate records after import",
@@ -475,7 +478,7 @@ const ADMIN_TICKETS = [
     category: "Bug (Code defect)",
     environment: "PROD"
   },
-  { 
+  {
     id: "TKT-13",
     description: "The user uploaded the budget template, status shows error but no error file is available",
     title: "PDF generation hangs",
@@ -488,7 +491,7 @@ const ADMIN_TICKETS = [
     category: "Bug (Code defect)",
     environment: "UAT"
   },
-  { 
+  {
     id: "TKT-14",
     description: "[UAT] Transaction Logs not showing data for PIM entity filter",
     title: "Role permissions not saving",
@@ -501,7 +504,7 @@ const ADMIN_TICKETS = [
     category: "Bug (Code defect)",
     environment: "UAT"
   },
-  { 
+  {
     id: "TKT-15",
     description: "SNOP status stuck at 'Forecast in Progress' and DFUs not loading",
     title: "Timezone mismatch in schedules",
@@ -551,7 +554,7 @@ const NAV_ITEMS = [
       {
         key: "tickets",
         label: "All tickets",
-        count: 18,
+        count: "",
         countStyle: {},
         icon: (
           <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2} style={{ flexShrink: 0 }}>
@@ -562,7 +565,7 @@ const NAV_ITEMS = [
       {
         key: "escalated",
         label: "Escalations",
-        count: 4,
+        count: "",
         countStyle: { background: C.dangerBg, color: C.danger },
         icon: (
           <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2} style={{ flexShrink: 0 }}>
@@ -653,17 +656,19 @@ const NAV_ITEMS = [
 ];
 
 // ── Ticket Detail Dialog ───────────────────────────────────────────────────
-const TicketDetailDialog = ({ ticket, users = [], onClose }) => {
-  const [action,             setAction]             = useState(null);
-  const [reason,             setReason]             = useState("");
-  const [assignedToId,       setAssignedToId]       = useState("");
+const TicketDetailDialog = ({ ticket, users = [], teams = [], onClose }) => {
+  const [action, setAction] = useState(null);
+  const [reason, setReason] = useState("");
+  const [assignedToId, setAssignedToId] = useState("");
   const [estimatedTimeHours, setEstimatedTimeHours] = useState("");
-  const [saving,             setSaving]             = useState(false);
-  const [saved,              setSaved]              = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     setAction(null); setReason(""); setAssignedToId("");
-    setEstimatedTimeHours(""); setSaved(false);
+    setEstimatedTimeHours(""); setSaved(false); setSelectedTeamId("");
   }, [ticket?.id]);
 
   if (!ticket) return null;
@@ -679,19 +684,19 @@ const TicketDetailDialog = ({ ticket, users = [], onClose }) => {
     try {
       if (action === "escalate") {
         await createEscalation({
-          ticketId:           Number(ticket.id),
-          escalatedById:      currentUser.userId,
-          assignedToId:       assignedToId ? Number(assignedToId) : undefined,
-          reason:             reason.trim(),
+          ticketId: Number(ticket.id),
+          escalatedById: currentUser.userId,
+          assignedToId: assignedToId ? Number(assignedToId) : undefined,
+          reason: reason.trim(),
           estimatedTimeHours: Number(estimatedTimeHours) || 0,
-          resolvedAt:         null,
+          resolvedAt: null,
         });
       } else {
         await updateTicket(ticket.id, { statusId: 5 });
       }
       setSaved(true);
       setTimeout(() => onClose(), 1800);
-    } catch (_) {}
+    } catch (_) { }
     setSaving(false);
   };
 
@@ -761,6 +766,38 @@ const TicketDetailDialog = ({ ticket, users = [], onClose }) => {
               >
                 Close ticket
               </Btn>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 12, color: C.textSecondary }}>Assign:</span>
+                <select
+                  value={selectedTeamId}
+                  onChange={e => setSelectedTeamId(e.target.value)}
+                  style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, background: C.bg, color: C.text }}
+                >
+                  <option value="">Select Team Leads</option>
+                  {teams.map(u => (
+                    <option key={u.id} value={u.teamId}>
+                      {u?.leadUser?.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username || `User ${u.id}`}
+                    </option>
+                  ))}
+                </select>
+                {selectedTeamId && (
+                  <button
+                    disabled={assigning}
+                    onClick={async () => {
+                      setAssigning(true);
+                      try {
+                        await AssignTeamToTicket(selectedTeamId, ticket?.id);
+                        setSelectedTeamId("");
+                      } finally {
+                        setAssigning(false);
+                      }
+                    }}
+                    style={{ fontSize: 12, padding: "4px 12px", borderRadius: 6, border: "none", background: C.blue, color: "#fff", cursor: assigning ? "not-allowed" : "pointer", opacity: assigning ? 0.7 : 1 }}
+                  >
+                    {assigning ? "Assigning…" : "Assign"}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Escalate fields */}
@@ -855,29 +892,29 @@ const AlertBanner = ({ type, children }) => {
 // ── DASHBOARD SECTION ──────────────────────────────────────────────────────
 const DashboardSection = () => {
   const openNewTicket = useContext(NewTicketCtx);
-  const { data: statsRaw,      loading: statsLoading }      = useFetch(() => getDashboardStats());
+  const { data: statsRaw, loading: statsLoading } = useFetch(() => getDashboardStats());
   const { data: activitiesRaw, loading: activitiesLoading } = useFetch(() => getRecentActivities());
-  const { data: clientChartRaw }                            = useFetch(() => getTicketsByClientDashboard());
+  const { data: clientChartRaw } = useFetch(() => getTicketsByClientDashboard());
 
-  const stats          = statsRaw || {};
-  const activities     = toArray(activitiesRaw);
+  const stats = statsRaw || {};
+  const activities = toArray(activitiesRaw);
   const clientChartApi = toArray(clientChartRaw);
 
   const metricCards = [
-    { label: "Total tickets", val: stats.totalTickets   ?? stats.totalOpen          ?? "0", valStyle: { color: C.blue },    sub: "Across 3 clients"     },
-    { label: "SLA breaches today", val: stats.slaBreachesToday ?? stats.slaBreaches     ?? "0", valStyle: { color: C.danger },  sub: "↑ 2 vs yesterday"    },
-    { label: "Avg resolution time",val: stats.avgResolution ?? stats.avgResolutionTime  ?? "0", valStyle: {},                   sub: "Target: 2.5d"        },
-    { label: "Closed this month",  val: stats.closedThisMonth                           ?? "0", valStyle: { color: C.success }, sub: "+18% vs last month"  },
-    { label: "Escalations open",   val: stats.escalationsOpen ?? stats.openEscalations  ?? "1", valStyle: { color: C.warn },   sub: "Unassigned: 1"       },
-    { label: "Team utilisation",   val: stats.teamUtilisation                           ?? "0", valStyle: {},                   sub: "4 agents active"     },
+    { label: "Total tickets", val: stats.totalTickets ?? stats.totalOpen ?? "0", valStyle: { color: C.blue }, sub: "Across 3 clients" },
+    { label: "SLA breaches today", val: stats.slaBreachesToday ?? stats.slaBreaches ?? "0", valStyle: { color: C.danger }, sub: "↑ 2 vs yesterday" },
+    { label: "Avg resolution time", val: stats.avgResolution ?? stats.avgResolutionTime ?? "0", valStyle: {}, sub: "Target: 2.5d" },
+    { label: "Closed this month", val: stats.closedThisMonth ?? "0", valStyle: { color: C.success }, sub: "+18% vs last month" },
+    { label: "Escalations open", val: stats.escalationsOpen ?? stats.openEscalations ?? "1", valStyle: { color: C.warn }, sub: "Unassigned: 1" },
+    { label: "Team utilisation", val: stats.teamUtilisation ?? "0", valStyle: {}, sub: "4 agents active" },
   ];
 
   const FALLBACK_ACTIVITY = [
-    { color: C.red,      text: "TKT-004 escalated to S1 by Nikita K.", time: "12 min ago · Client 2" },
-    { color: "#378ADD",  text: "TKT-018 assigned to Ravi M.",           time: "34 min ago · Client 1" },
-    { color: C.green,    text: "TKT-009 closed — root cause: config error.", time: "1h ago · Client 3" },
-    { color: C.orange,   text: "TKT-013 SLA warning triggered.",        time: "2h ago · Client 2" },
-    { color: "#378ADD",  text: "New ticket TKT-034 raised by Client 1.",time: "3h ago · Client 1" },
+    { color: C.red, text: "TKT-004 escalated to S1 by Nikita K.", time: "12 min ago · Client 2" },
+    { color: "#378ADD", text: "TKT-018 assigned to Ravi M.", time: "34 min ago · Client 1" },
+    { color: C.green, text: "TKT-009 closed — root cause: config error.", time: "1h ago · Client 3" },
+    { color: C.orange, text: "TKT-013 SLA warning triggered.", time: "2h ago · Client 2" },
+    { color: "#378ADD", text: "New ticket TKT-034 raised by Client 1.", time: "3h ago · Client 1" },
   ];
 
   const clientColors = { "Client 1": "#D4537E", "Client 2": "#378ADD", "Client 3": "#1D9E75" };
@@ -947,23 +984,15 @@ const DashboardSection = () => {
           {activitiesLoading ? <Spinner /> : (
             activities.length > 0
               ? activities.slice(0, 5).map((a, i) => (
-                  <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < Math.min(activities.length, 5) - 1 ? `0.5px solid ${C.border}` : "none" }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#378ADD", flexShrink: 0, marginTop: 4 }} />
-                    <div>
-                      <div style={{ fontSize: 13, lineHeight: 1.4 }}>{a.description || a.text || a.message || "—"}</div>
-                      <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{a.time || a.timeAgo || ""}</div>
-                    </div>
+                <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < Math.min(activities.length, 5) - 1 ? `0.5px solid ${C.border}` : "none" }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#378ADD", flexShrink: 0, marginTop: 4 }} />
+                  <div>
+                    <div style={{ fontSize: 13, lineHeight: 1.4 }}>{a.action || a.text || a.message || "—"}</div>
+                    <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>Performed By: {a.performedBy || a.timeAgo || ""} - at: {a?.timestamp}</div>
                   </div>
-                ))
-              : FALLBACK_ACTIVITY.map((a, i) => (
-                  <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < FALLBACK_ACTIVITY.length - 1 ? `0.5px solid ${C.border}` : "none" }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: a.color, flexShrink: 0, marginTop: 4 }} />
-                    <div>
-                      <div style={{ fontSize: 13, lineHeight: 1.4 }}>{a.text}</div>
-                      <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{a.time}</div>
-                    </div>
-                  </div>
-                ))
+                </div>
+              ))
+              : null
           )}
         </Card>
       </div>
@@ -974,13 +1003,13 @@ const DashboardSection = () => {
 // ── ALL TICKETS SECTION ────────────────────────────────────────────────────
 const AllTicketsSection = () => {
   const openNewTicket = useContext(NewTicketCtx);
-  const [search,         setSearch]         = useState("");
-  const [filterClient,   setFilterClient]   = useState("");
-  const [filterMod,      setFilterMod]      = useState("");
-  const [filterSev,      setFilterSev]      = useState("");
-  const [filterStat,     setFilterStat]     = useState("");
-  const [selected,       setSelected]       = useState(new Set());
-  const [bulkVisible,    setBulkVisible]    = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterClient, setFilterClient] = useState("");
+  const [filterMod, setFilterMod] = useState("");
+  const [filterSev, setFilterSev] = useState("");
+  const [filterStat, setFilterStat] = useState("");
+  const [selected, setSelected] = useState(new Set());
+  const [bulkVisible, setBulkVisible] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
 
   // ── Ticket grid data (same useFetch pattern as every other section) ────────
@@ -991,23 +1020,25 @@ const AllTicketsSection = () => {
   const tickets = toArray(ticketsRaw).map(normalizeAdminTicket);
 
   // ── Dropdown data from API ─────────────────────────────────────────────────
-  const [clients,    setClients]    = useState([]);
-  const [modules,    setModules]    = useState([]);
+  const [clients, setClients] = useState([]);
+  const [modules, setModules] = useState([]);
   const [severities, setSeverities] = useState([]);
-  const [statuses,   setStatuses]   = useState([]);
-  const [users,      setUsers]      = useState([]);
+  const [statuses, setStatuses] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [teams, setTeams] = useState([]);
 
   useEffect(() => {
-    getAllClients().then(res => setClients(toArray(res))).catch(() => {});
-    getAllModules().then(res => setModules(toArray(res))).catch(() => {});
-    getAllSeverities().then(res => setSeverities(toArray(res))).catch(() => {});
-    getAllTicketStatuses().then(res => setStatuses(toArray(res))).catch(() => {});
-    getAllUsers().then(res => setUsers(toArray(res))).catch(() => {});
+    getAllClients().then(res => setClients(toArray(res))).catch(() => { });
+    getAllModules().then(res => setModules(toArray(res))).catch(() => { });
+    getAllSeverities().then(res => setSeverities(toArray(res))).catch(() => { });
+    getAllTicketStatuses().then(res => setStatuses(toArray(res))).catch(() => { });
+    getAllUsers().then(res => setUsers(toArray(res))).catch(() => { });
+    getAllTeams().then(res => setTeams(toArray(res))).catch(() => { });
   }, []);
 
   const sevNameToLabel = (name = "") => {
     const n = name.toLowerCase();
-    if (n.includes("1") || n.includes("high"))     return "S1";
+    if (n.includes("1") || n.includes("high")) return "S1";
     if (n.includes("2") || n.includes("moderate")) return "S2";
     return "S3";
   };
@@ -1017,9 +1048,9 @@ const AllTicketsSection = () => {
     return (
       (!s || t.title.toLowerCase().includes(s) || t.id.toLowerCase().includes(s)) &&
       (!filterClient || t?.projects?.client?.name === filterClient) &&
-      (!filterMod    || t.mod    === filterMod) &&
-      (!filterSev    || t.sev    === sevNameToLabel(filterSev)) &&
-      (!filterStat   || t.status === filterStat)
+      (!filterMod || t.mod === filterMod) &&
+      (!filterSev || t.sev === sevNameToLabel(filterSev)) &&
+      (!filterStat || t.status === filterStat)
     );
   });
 
@@ -1046,7 +1077,7 @@ const AllTicketsSection = () => {
 
   return (
     <div>
-      <TicketDetailDialog ticket={selectedTicket} users={users} onClose={() => setSelectedTicket(null)} />
+      <TicketDetailDialog ticket={selectedTicket} users={users} teams={teams} onClose={() => setSelectedTicket(null)} />
       <SHeader title="All tickets">
         <Btn sm ghost onClick={() => setBulkVisible(!bulkVisible)}>Bulk actions</Btn>
         <Btn sm variant="primary" onClick={openNewTicket}>+ New ticket</Btn>
@@ -1093,7 +1124,7 @@ const AllTicketsSection = () => {
       )}
 
       {/* Table */}
-       
+
       <Card style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -1135,7 +1166,7 @@ const AllTicketsSection = () => {
           </table>
         </div>
       </Card>
-      
+
     </div>
   );
 };
@@ -1143,13 +1174,12 @@ const AllTicketsSection = () => {
 // ── ESCALATIONS SECTION ────────────────────────────────────────────────────
 const EscalationsSection = () => {
   const [escalations, setEscalations] = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     getEscalationUnresolved().then((res) => {
-      console.log("Escalations fetched:", res);
       if (active) {
         setEscalations(toArray(res));
         setLoading(false);
@@ -1161,7 +1191,7 @@ const EscalationsSection = () => {
   }, []);
 
   const unassigned = escalations.filter(e => !e.spoc || e.spoc === "—").length;
-  const selectSx   = { fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, background: C.bg, color: C.text };
+  const selectSx = { fontSize: 12, padding: "4px 8px", borderRadius: 6, border: `0.5px solid ${C.borderSecondary}`, background: C.bg, color: C.text };
 
   return (
     <div>
@@ -1174,52 +1204,51 @@ const EscalationsSection = () => {
         </AlertBanner>
       )}
       {loading ? <Spinner /> : (
-      <Card style={{ padding: 0, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr>
-              {["Ticket", "Client", "Severity", "SPOC", "Category", "Date", "Actions"].map((h) => (
-                <th key={h} style={{ textAlign: "center", padding: "8px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 11, fontWeight: 500, color: C.textSecondary }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {escalations.map((e) => (
-              <tr key={e.id}
-                onMouseEnter={(ev) => ev.currentTarget.style.background = C.bgSecondary}
-                onMouseLeave={(ev) => ev.currentTarget.style.background = "transparent"}
-              >
-                {console.log(e)}
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
-                  <div style={{ fontWeight: 500, fontSize: 13 }}>{e?.ticket?.title || e?.ticket}</div>
-                  <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 1 }}>{e.id} · {e.mod}</div>
-                </td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><ClientBadge client={e.client} /></td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><SevBadge sev={e.sev} /></td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12, ...((!e.spoc || e.spoc === "—") ? { color: C.danger } : {}) }}>
-                  {e.spoc && e.spoc !== "—" ? e.spoc : "Unassigned"}
-                </td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12 }}>{e.category}</td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12, color: C.danger }}>{e.date}</td>
-                <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
-                  <div style={{ display: "flex", gap: 5 }}>
-                    <select style={selectSx}>
-                      <option value="">Assign…</option>
-                      <option>Nikita K.</option><option>Ravi M.</option><option>Priya S.</option>
-                    </select>
-                    <Btn sm variant="success">Resolve</Btn>
-                  </div>
-                </td>
+        <Card style={{ padding: 0, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr>
+                {["Ticket", "Client", "Severity", "SPOC", "Category", "Date", "Actions"].map((h) => (
+                  <th key={h} style={{ textAlign: "center", padding: "8px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 11, fontWeight: 500, color: C.textSecondary }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-            {escalations.length === 0 && (
-              <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px 0", color: C.textTertiary, fontSize: 13 }}>No escalated tickets</td></tr>
-            )}
-          </tbody>
-        </table>
-      </Card>
+            </thead>
+            <tbody>
+              {escalations.map((e) => (
+                <tr key={e.id}
+                  onMouseEnter={(ev) => ev.currentTarget.style.background = C.bgSecondary}
+                  onMouseLeave={(ev) => ev.currentTarget.style.background = "transparent"}
+                >
+                  <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
+                    <div style={{ fontWeight: 500, fontSize: 13 }}>{e?.ticket?.title || e?.ticket}</div>
+                    {/* <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 1 }}>{e.id} · {e.mod}</div> */}
+                  </td>
+                  <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><ClientBadge client={e?.ticket?.client?.name} /></td>
+                  <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}><SevBadge sev={e?.ticket?.severity?.label} /></td>
+                  <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12, ...((!e.spoc || e.spoc === "—") ? { color: C.danger } : {}) }}>
+                    {e.spoc && e.spoc !== "—" ? e.spoc : "Unassigned"}
+                  </td>
+                  <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12 }}>{e?.ticket?.category?.name}</td>
+                  <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}`, fontSize: 12, color: C.danger }}>{e?.ticket?.dateOfCreation}</td>
+                  <td style={{ padding: "9px 10px", borderBottom: `0.5px solid ${C.border}` }}>
+                    <div style={{ display: "flex", gap: 5 }}>
+                      <select style={selectSx}>
+                        <option value="">Assign…</option>
+                        <option>Nikita K.</option><option>Ravi M.</option><option>Priya S.</option>
+                      </select>
+                      <Btn sm variant="success">Resolve</Btn>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {escalations.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: "center", padding: "24px 0", color: C.textTertiary, fontSize: 13 }}>No escalated tickets</td></tr>
+              )}
+            </tbody>
+          </table>
+        </Card>
       )}
     </div>
   );
@@ -1392,7 +1421,7 @@ const ClientTicketsPopup = ({ client, tickets = [], loading = false, onClose }) 
 
 // ── CLIENTS SECTION ────────────────────────────────────────────────────────
 const ClientsSection = () => {
-  const [viewClient,  setViewClient]  = useState(null);
+  const [viewClient, setViewClient] = useState(null);
   const [viewTickets, setViewTickets] = useState([]);
   const [viewLoading, setViewLoading] = useState(false);
 
@@ -1403,7 +1432,7 @@ const ClientsSection = () => {
     try {
       const res = await getTicketsByClient(cl.id);
       setViewTickets(toArray(res).map(normalizeAdminTicket));
-    } catch (_) {}
+    } catch (_) { }
     setViewLoading(false);
   };
 
@@ -1425,25 +1454,25 @@ const ClientsSection = () => {
   const rawClients = toArray(clientsRaw);
   const clients = rawClients.length > 0
     ? rawClients.map((c, i) => {
-        const meta = CLIENT_META[i % CLIENT_META.length];
-        const name = c.name || c.clientName || `Client ${i + 1}`;
-        return {
-          code:   name.slice(0, 2).toUpperCase(),
-          name,
-          id:     c.id ?? c.clientId,
-          since:  c.createdAt ? `Since ${c.createdAt.split("T")[0]}` : c.since || "—",
-          avSx:   meta.avSx,
-          health: meta.health,
-          spoc:   c.spoc?.name || c.deliverySpoc?.name || c.spoc || "—",
-          mods:   Array.isArray(c.modules) ? c.modules.join(", ") : c.modules || "—",
-          stats:  [
-            { val: c.openTickets   ?? "—", label: "Open",    color: C.blue    },
-            { val: c.atRisk        ?? "—", label: "At risk", color: C.danger  },
-            { val: c.closedTickets ?? "—", label: "Closed",  color: C.success },
-          ],
-          border: meta.border,
-        };
-      })
+      const meta = CLIENT_META[i % CLIENT_META.length];
+      const name = c.name || c.clientName || `Client ${i + 1}`;
+      return {
+        code: name.slice(0, 2).toUpperCase(),
+        name,
+        id: c.id ?? c.clientId,
+        since: c.createdAt ? `Since ${c.createdAt.split("T")[0]}` : c.since || "—",
+        avSx: meta.avSx,
+        health: meta.health,
+        spoc: c.spoc?.name || c.deliverySpoc?.name || c.spoc || "—",
+        mods: Array.isArray(c.modules) ? c.modules.join(", ") : c.modules || "—",
+        stats: [
+          { val: c.openTickets ?? "—", label: "Open", color: C.blue },
+          { val: c.atRisk ?? "—", label: "At risk", color: C.danger },
+          { val: c.closedTickets ?? "—", label: "Closed", color: C.success },
+        ],
+        border: meta.border,
+      };
+    })
     : STATIC_CLIENTS;
 
   return (
@@ -1455,7 +1484,6 @@ const ClientsSection = () => {
       {loading && <Spinner />}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
         {clients.map((cl) => (
-          console.log(cl),
           <div key={cl.code} style={{ background: C.bg, border: cl.border || `0.5px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1466,7 +1494,7 @@ const ClientsSection = () => {
                 </div>
               </div>
               <Badge style={{ background: cl.health.bg, color: cl.health.color }}>{cl.health.label}</Badge>
-            </div>{console.log({cl,"spoc": cl.spoc, "mods": cl.mods})}
+            </div>
             <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 6 }}>Client SPOC: {cl.spoc} · Modules: {cl.mods}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 10 }}>
               {cl.stats.map((s) => (
@@ -1490,6 +1518,22 @@ const ClientsSection = () => {
 // ── TEAM SECTION ───────────────────────────────────────────────────────────
 const TeamSection = () => {
   const { data: usersRaw, loading } = useFetch(() => getUserById(5));
+  const [viewMember, setViewMember] = useState(null);
+  const [viewTickets, setViewTickets] = useState([]);
+  const [viewLoading, setViewLoading] = useState(false);
+
+  const handleViewTickets = async (m) => {
+    setViewMember(m);
+    setViewTickets([]);
+    setViewLoading(true);
+    try {
+      const res = await getTicketsByTeam(m.id);
+      setViewTickets(toArray(res).map(normalizeAdminTicket));
+    } catch (_) { }
+    setViewLoading(false);
+  };
+
+  const closePopup = () => { setViewMember(null); setViewTickets([]); setViewLoading(false); };
 
   const STATIC_MEMBERS = [
     { initials: "NK", name: "Nikita K.", role: "LEAD", roleSx: { background: "#EEEDFE", color: "#3C3489" }, technicalRole: "Engineering", technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" }, stats: "12 active · Client 2 · Avg 3.1d", avSx: { background: C.blueBg, color: C.blueDark }, workload: 85, wColor: C.red, tickets: 12 },
@@ -1510,28 +1554,35 @@ const TeamSection = () => {
   const rawUsers = toArray(usersRaw);
   const members = rawUsers.length > 0
     ? rawUsers.map((u, i) => {
-        const meta = MEMBER_META[i % MEMBER_META.length];
-        const name = u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username || `User ${i + 1}`;
-        const role = u.role?.roleName || u.role?.name || (typeof u.role === "string" ? u.role : "SPOC");
-        const tickets = u.activeTickets ?? u.openTickets ?? 0;
-        return {
-          initials:      mkInitials(name),
-          name,
-          role,
-          roleSx:        { background: "#EEEDFE", color: "#3C3489" },
-          technicalRole: (typeof u.department === "string" ? u.department : null) || (typeof u.team === "string" ? u.team : null) || "—",
-          technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" },
-          stats:         `${tickets} active · ${u.client?.name || (typeof u.client === "string" ? u.client : "—")} · Avg ${u.avgResolution || "—"}`,
-          avSx:          meta.avSx,
-          workload:      u.workload ?? Math.min(tickets * 7, 100),
-          wColor:        meta.wColor,
-          tickets,
-        };
-      })
+      const meta = MEMBER_META[i % MEMBER_META.length];
+      const name = u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username || `User ${i + 1}`;
+      const role = u.role?.roleName || u.role?.name || (typeof u.role === "string" ? u.role : "SPOC");
+      const tickets = u.activeTickets ?? u.openTickets ?? 0;
+      return {
+        id: u.id ?? u.userId,
+        initials: mkInitials(name),
+        name,
+        role,
+        roleSx: { background: "#EEEDFE", color: "#3C3489" },
+        technicalRole: (typeof u.department === "string" ? u.department : null) || (typeof u.team === "string" ? u.team : null) || "—",
+        technicalRoleSx: { background: "#EEEDFE", color: "#b77e3c" },
+        stats: `${tickets} active · ${u.client?.name || (typeof u.client === "string" ? u.client : "—")} · Avg ${u.avgResolution || "—"}`,
+        avSx: meta.avSx,
+        workload: u.workload ?? Math.min(tickets * 7, 100),
+        wColor: meta.wColor,
+        tickets,
+      };
+    })
     : STATIC_MEMBERS;
 
   return (
     <div>
+      <ClientTicketsPopup
+        client={viewMember ? { id: viewMember.id, code: viewMember.initials, name: viewMember.name, avSx: viewMember.avSx, spoc: viewMember.role } : null}
+        tickets={viewTickets}
+        loading={viewLoading}
+        onClose={closePopup}
+      />
       <SHeader title="Team management">
         <Btn sm variant="primary">+ Add member</Btn>
       </SHeader>
@@ -1543,12 +1594,12 @@ const TeamSection = () => {
               <div style={{ width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 500, flexShrink: 0, ...m.avSx }}>{m.initials}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</div>
-                <div style={{ fontSize: 11,gap:2, display:"flex" ,justifyContent:"center"}}><Badge style={m.roleSx}>{m.role}</Badge><Badge style={m.technicalRoleSx}>{m.technicalRole}</Badge></div>
+                <div style={{ fontSize: 11, gap: 2, display: "flex", justifyContent: "center" }}><Badge style={m.roleSx}>{m.role}</Badge><Badge style={m.technicalRoleSx}>{m.technicalRole}</Badge></div>
                 <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{m.stats}</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {/* <Btn sm ghost>Edit</Btn> */}
-                <Btn sm ghost>Tickets</Btn>
+                <Btn sm ghost onClick={() => handleViewTickets(m)}>Tickets</Btn>
               </div>
             </div>
           ))}
@@ -1589,9 +1640,9 @@ const TeamSection = () => {
 
 // ── ANALYTICS SECTION ──────────────────────────────────────────────────────
 const AnalyticsSection = () => {
-  const { data: clientChartRaw }   = useFetch(() => getTicketsByClientDashboard());
+  const { data: clientChartRaw } = useFetch(() => getTicketsByClientDashboard());
   const { data: categoryChartRaw } = useFetch(() => getTicketsByCategory());
-  const { data: moduleChartRaw }   = useFetch(() => getTicketsByModule());
+  const { data: moduleChartRaw } = useFetch(() => getTicketsByModule());
 
   const SimpleBarChart = ({ data, colorFn }) => {
     const max = Math.max(...data.map((d) => d.val), 1);
@@ -1611,14 +1662,14 @@ const AnalyticsSection = () => {
   };
 
   const CLIENT_COLORS = ["#D4537E", "#378ADD", "#1D9E75", "#EF9F27", "#9C6FDE"];
-  const SEV_COLORS    = { S1: C.red, S2: C.orange, S3: C.green };
+  const SEV_COLORS = { S1: C.red, S2: C.orange, S3: C.green };
 
-  const rawClient   = toArray(clientChartRaw);
+  const rawClient = toArray(clientChartRaw);
   const rawCategory = toArray(categoryChartRaw);
-  const rawModule   = toArray(moduleChartRaw);
+  const rawModule = toArray(moduleChartRaw);
 
   const clientData = rawClient.length > 0
-    ? rawClient.map((d, i) => ({ label: d.name || d.client || d.clientName || `C${i+1}`, val: d.count ?? d.value ?? 0, color: CLIENT_COLORS[i % CLIENT_COLORS.length] }))
+    ? rawClient.map((d, i) => ({ label: d.name || d.client || d.clientName || `C${i + 1}`, val: d.count ?? d.value ?? 0, color: CLIENT_COLORS[i % CLIENT_COLORS.length] }))
     : [{ label: "C1", val: 18, color: "#D4537E" }, { label: "C2", val: 22, color: "#378ADD" }, { label: "C3", val: 12, color: "#1D9E75" }];
 
   const monthData = [
@@ -1630,7 +1681,7 @@ const AnalyticsSection = () => {
     ? rawModule.map(d => { const l = d.name || d.module || "—"; return { label: l, val: d.count ?? d.value ?? 0, color: SEV_COLORS[l] || "#378ADD" }; })
     : [{ label: "S1", val: 12, color: C.red }, { label: "S2", val: 16, color: C.orange }, { label: "S3", val: 10, color: C.green }];
 
-  const totalCat  = rawCategory.reduce((s, d) => s + (d.count ?? d.value ?? 0), 0) || 1;
+  const totalCat = rawCategory.reduce((s, d) => s + (d.count ?? d.value ?? 0), 0) || 1;
   const categoryItems = rawCategory.length > 0
     ? rawCategory.map((d, i) => ({ color: CLIENT_COLORS[i % CLIENT_COLORS.length], label: `${d.name || d.category || "—"} ${Math.round(((d.count ?? d.value ?? 0) / totalCat) * 100)}%` }))
     : [{ color: "#378ADD", label: "Env issue 42%" }, { color: C.orange, label: "Bug 25%" }, { color: C.green, label: "Change req 20%" }, { color: "#D4537E", label: "Other 13%" }];
@@ -1695,28 +1746,28 @@ const ProjectsSection = () => {
   const statusSxMap = (s = "") => {
     const sl = s.toLowerCase();
     if (sl.includes("progress") || sl.includes("active")) return { bg: C.warnBg, color: C.warn };
-    if (sl.includes("complete") || sl.includes("done"))   return { bg: C.successBg, color: C.success };
+    if (sl.includes("complete") || sl.includes("done")) return { bg: C.successBg, color: C.success };
     return { bg: C.blueBg, color: C.blue };
   };
 
   const rawProjects = toArray(projectsRaw);
   const projects = rawProjects.length > 0
     ? rawProjects.map(p => {
-        const status = p.status?.name || p.status || "Planned";
-        const pct    = p.progress ?? p.completionPct ?? p.percentage ?? 0;
-        const ssx    = statusSxMap(status);
-        return {
-          title:       p.name || p.title || "—",
-          client:      p.client?.name || p.client || "—",
-          spoc:        p.spoc?.name || p.deliverySpoc?.name || p.spoc || "—",
-          due:         (p.dueDate || p.due || "").split("T")[0] || "—",
-          statusLabel: `${status} · ${pct}%`,
-          statusSx:    { background: ssx.bg, color: ssx.color },
-          pct,
-          pColor:      "#378ADD",
-          note:        p.aiSummary || p.summary || null,
-        };
-      })
+      const status = p.status?.name || p.status || "Planned";
+      const pct = p.progress ?? p.completionPct ?? p.percentage ?? 0;
+      const ssx = statusSxMap(status);
+      return {
+        title: p.name || p.title || "—",
+        client: p.client?.name || p.client || "—",
+        spoc: p.spoc?.name || p.deliverySpoc?.name || p.spoc || "—",
+        due: (p.dueDate || p.due || "").split("T")[0] || "—",
+        statusLabel: `${status} · ${pct}%`,
+        statusSx: { background: ssx.bg, color: ssx.color },
+        pct,
+        pColor: "#378ADD",
+        note: p.aiSummary || p.summary || null,
+      };
+    })
     : STATIC_PROJECTS;
 
   return (
@@ -1948,7 +1999,7 @@ const AdminLayout = () => {
   const navigate = useNavigate();
 
   const handleLogout = useCallback(async () => {
-    try { await logout(); } catch (_) {}
+    try { await logout(); } catch (_) { }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login");
