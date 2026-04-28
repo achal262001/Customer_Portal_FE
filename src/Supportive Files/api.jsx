@@ -196,6 +196,8 @@ export default api;
 // Teams 
 export const getAllTeams = () => api.get("/teams");
 
+export const editTeam = (teamId, data) => api.put(`/teams/${teamId}`, data);
+
 export const AssignTeamToTicket = (teamId, ticketId) => api.post(`/teams/${teamId}/tickets/${ticketId}`, { teamId });
 
 export const getTicketsByTeam = (teamId) => api.get(`/teams/${teamId}/tickets`);
