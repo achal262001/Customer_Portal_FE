@@ -7,8 +7,8 @@ import {
   IconButton,
   OutlinedInput,
   FormControl,
-  InputLabel,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -18,6 +18,7 @@ import { login } from "../../Supportive Files/api";
 
 const Login = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -52,23 +53,23 @@ const Login = () => {
     <Box
       sx={{
         height: "100vh",
-        // backgroundImage: "url('/LoginTheme.png')",
-        // backgroundSize: "contain",
-        // backgroundPosition: "center",
-        // backgroundRepeat: "repeat",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        backgroundColor: theme.palette.background.default,
       }}
     >
       {/* Login Card */}
       <Box
         sx={{
-          backgroundColor: "#ffffff",
+          backgroundColor: theme.palette.background.paper,
           borderRadius: 4,
           p: "40px 36px",
           width: 380,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          boxShadow: theme.palette.mode === "dark"
+            ? "0 8px 32px rgba(0,0,0,0.5)"
+            : "0 8px 32px rgba(0,0,0,0.12)",
+          border: `0.5px solid ${theme.palette.divider}`,
         }}
       >
         {/* Logo */}
@@ -86,23 +87,20 @@ const Login = () => {
           >
             <Box sx={{ width: 14, height: 14, backgroundColor: "#fff", borderRadius: "2px", transform: "rotate(45deg)" }} />
           </Box>
-          <Typography sx={{ fontWeight: 700, fontSize: 20, color: "#2d2d2d", letterSpacing: 0.5 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 20, color: theme.palette.text.primary, letterSpacing: 0.5 }}>
             Relay Customer Portal
           </Typography>
         </Box>
 
         {/* Heading */}
-        <Typography variant="h5" fontWeight={700} sx={{ color: "#1a1a1a", mb: 0.5 }}>
+        <Typography variant="h5" fontWeight={700} sx={{ color: theme.palette.text.primary, mb: 0.5 }}>
           Welcome back
         </Typography>
-        <Typography variant="body2" sx={{ color: "#7b7b7b", mb: 3.5 }}>
+        <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3.5 }}>
           Sign in to your customer portal
         </Typography>
 
         {/* Email Field */}
-        {/* <Typography variant="caption" fontWeight={600} sx={{ color: "#3d3d3d", mb: 0.6, display: "block" }}>
-          Email Address
-        </Typography> */}
         <FormControl fullWidth sx={{ mb: 2.5 }}>
           <OutlinedInput
             placeholder="Email Address"
@@ -111,14 +109,14 @@ const Login = () => {
             onKeyDown={handleKeyDown}
             startAdornment={
               <InputAdornment position="start">
-                <MailOutlineIcon sx={{ fontSize: 18, color: "#9ca3af" }} />
+                <MailOutlineIcon sx={{ fontSize: 18, color: theme.palette.text.disabled }} />
               </InputAdornment>
             }
             sx={{
               borderRadius: 2.5,
-              backgroundColor: "#fafafa",
+              backgroundColor: theme.palette.background.default,
               fontSize: 14,
-              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#e5e7eb" },
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: theme.palette.divider },
               "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#4a6741" },
               "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#4a6741" },
             }}
@@ -126,9 +124,6 @@ const Login = () => {
         </FormControl>
 
         {/* Password Field */}
-        {/* <Typography variant="caption" fontWeight={600} sx={{ color: "#3d3d3d", mb: 0.6, display: "block" }}>
-          Password
-        </Typography> */}
         <FormControl fullWidth sx={{ mb: 3.5 }}>
           <OutlinedInput
             placeholder="Password"
@@ -138,23 +133,23 @@ const Login = () => {
             onKeyDown={handleKeyDown}
             startAdornment={
               <InputAdornment position="start">
-                <LockOutlinedIcon sx={{ fontSize: 18, color: "#9ca3af" }} />
+                <LockOutlinedIcon sx={{ fontSize: 18, color: theme.palette.text.disabled }} />
               </InputAdornment>
             }
             endAdornment={
               <InputAdornment position="end">
                 <IconButton size="small" onClick={() => setShowPassword((v) => !v)} edge="end">
                   {showPassword
-                    ? <VisibilityOffIcon sx={{ fontSize: 18, color: "#9ca3af" }} />
-                    : <VisibilityIcon sx={{ fontSize: 18, color: "#9ca3af" }} />}
+                    ? <VisibilityOffIcon sx={{ fontSize: 18, color: theme.palette.text.disabled }} />
+                    : <VisibilityIcon sx={{ fontSize: 18, color: theme.palette.text.disabled }} />}
                 </IconButton>
               </InputAdornment>
             }
             sx={{
               borderRadius: 2.5,
-              backgroundColor: "#fafafa",
+              backgroundColor: theme.palette.background.default,
               fontSize: 14,
-              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#e5e7eb" },
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: theme.palette.divider },
               "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#4a6741" },
               "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#4a6741" },
             }}
@@ -182,7 +177,7 @@ const Login = () => {
         </Button>
 
         {/* Sign Up Link */}
-        <Typography variant="body2" sx={{ textAlign: "center", mt: 2.5, color: "#7b7b7b" }}>
+        <Typography variant="body2" sx={{ textAlign: "center", mt: 2.5, color: theme.palette.text.secondary }}>
           Don&apos;t have an account?{" "}
           <Box component="span" sx={{ color: "#4a6741", fontWeight: 600, cursor: "pointer" }}>
             Sign Up
